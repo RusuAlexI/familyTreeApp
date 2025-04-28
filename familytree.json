@@ -1,0 +1,19 @@
+{
+  "persons": [
+    {
+      "id": "d1ff85a3-3125-424d-95a1-885e85a21823",
+      "name": "ab",
+      "dateOfBirth": "1988-11-11",
+      "dateOfDeath": "",
+      "gender": "M"
+    },
+    {
+      "id": "3dfc9bf1-b539-4101-9142-c5f79f1cbea4",
+      "name": "b",
+      "dateOfBirth": "1968-11-11",
+      "dateOfDeath": "",
+      "gender": "F"
+    }
+  ],
+  "relationships": []
+}

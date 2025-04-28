@@ -1,0 +1,23 @@
+{
+  "persons": [
+    {
+      "id": "f55e3b00-0afa-46ed-8369-c4f4fa0edc94",
+      "name": "a",
+      "dateOfBirth": "1988-11-11",
+      "dateOfDeath": "",
+      "gender": "",
+      "position": {
+        "x": 50.0,
+        "y": 50.0
+      }
+    },
+    {
+      "id": "209e3139-b0cf-4982-81b7-4237352ac31a",
+      "name": "f",
+      "dateOfBirth": "1999-12-12",
+      "dateOfDeath": "",
+      "gender": ""
+    }
+  ],
+  "relationships": []
+}
