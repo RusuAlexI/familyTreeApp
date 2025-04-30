@@ -3,7 +3,7 @@ package com.familytree;
 public class Relationship {
     private String fromId;
     private String toId;
-    private String type; // Example: Parent, Spouse, Sibling, etc.
+    private String type; // "Parent" or "Spouse"
 
     public Relationship(String fromId, String toId, String type) {
         this.fromId = fromId;

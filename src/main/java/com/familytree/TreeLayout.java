@@ -1,85 +1,43 @@
 package com.familytree;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class TreeLayout {
-    private Map<String, Position> positions = new HashMap<>();
-    private double verticalSpacing = 120;
-    private double horizontalSpacing = 150;
 
-    public Map<String, Position> calculateLayout(List<Person> persons, List<Relationship> relationships) {
-        positions.clear();
+    public static class Position {
+        private double x;
+        private double y;
 
-        List<Person> roots = findRoots(persons, relationships);
-
-        double startX = 50;
-        double startY = 50;
-
-        for (Person root : roots) {
-            startX = layoutPerson(root, startX, startY, persons, relationships);
-            startX += horizontalSpacing;
+        public Position(double x, double y) {
+            this.x = x;
+            this.y = y;
         }
 
-        return positions;
+        public double getX() { return x; }
+
+        public double getY() { return y; }
+
+        public void setX(double x) { this.x = x; }
+
+        public void setY(double y) { this.y = y; }
     }
 
-    private double layoutPerson(Person person, double x, double y, List<Person> persons, List<Relationship> relationships) {
-        List<Person> children = findChildren(person, persons, relationships);
+    private static final double NODE_WIDTH = 120;
+    private static final double NODE_HEIGHT = 60;
+    private static final double H_SPACING = 40;
+    private static final double V_SPACING = 100;
 
-        double originalX = x;
-        double subtreeWidth = 0;
+    public static Map<Person, Position> computeLayout(List<Person> persons) {
+        Map<Person, Position> layout = new HashMap<>();
 
-        for (Person child : children) {
-            x = layoutPerson(child, x, y + verticalSpacing, persons, relationships);
-            x += horizontalSpacing;
-            subtreeWidth += horizontalSpacing;
+        double x = 50;
+        double y = 50;
+
+        for (Person p : persons) {
+            layout.put(p, new Position(x, y));
+            x += NODE_WIDTH + H_SPACING;
         }
 
-        double nodeX;
-        if (!children.isEmpty()) {
-            nodeX = originalX + subtreeWidth / 2 - horizontalSpacing / 2;
-        } else {
-            nodeX = originalX;
-        }
-
-        positions.put(person.getId(), new Position(nodeX, y, person.getId()));
-
-        return Math.max(x, nodeX);
-    }
-
-    private List<Person> findRoots(List<Person> persons, List<Relationship> relationships) {
-        List<String> childrenIds = new ArrayList<>();
-        for (Relationship relationship : relationships) {
-            if (relationship.getType().equalsIgnoreCase("Parent")) {
-                childrenIds.add(relationship.getToId());
-            }
-        }
-
-        List<Person> roots = new ArrayList<>();
-        for (Person person : persons) {
-            if (!childrenIds.contains(person.getId())) {
-                roots.add(person);
-            }
-        }
-
-        return roots;
-    }
-
-    private List<Person> findChildren(Person parent, List<Person> persons, List<Relationship> relationships) {
-        List<Person> children = new ArrayList<>();
-        for (Relationship relationship : relationships) {
-            if (relationship.getType().equalsIgnoreCase("Parent") && relationship.getFromId().equals(parent.getId())) {
-                for (Person person : persons) {
-                    if (person.getId().equals(relationship.getToId())) {
-                        children.add(person);
-                        break;
-                    }
-                }
-            }
-        }
-        return children;
+        return layout;
     }
 }

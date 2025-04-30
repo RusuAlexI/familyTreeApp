@@ -1,32 +1,47 @@
 package com.familytree;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class TreeDataManager {
-    private static final String FILE_NAME = "family_tree.json";
+    private static TreeDataManager instance;
+    private final List<Person> persons;
 
-    private static final Gson gson = new GsonBuilder()
-            .setPrettyPrinting()
-            .create();
+    private TreeDataManager() {
+        this.persons = new ArrayList<>();
+    }
 
-    public static void save(FamilyTreeData data) {
-        try (FileWriter writer = new FileWriter(FILE_NAME)) {
-            gson.toJson(data, writer);
-        } catch (IOException e) {
-            e.printStackTrace();
+    public static TreeDataManager getInstance() {
+        if (instance == null) {
+            instance = new TreeDataManager();
+        }
+        return instance;
+    }
+
+    public List<Person> getPersons() {
+        return persons;
+    }
+
+    public void addPerson(Person person) {
+        persons.add(person);
+    }
+
+    public void removePerson(Person person) {
+        persons.remove(person);
+    }
+
+    public void clearAll() {
+        persons.clear();
+    }
+
+    public void loadFromFile(String filename) {
+        List<Person> loaded = FamilyTreeIO.load(filename);
+        if (loaded != null) {
+            persons.clear();
+            persons.addAll(loaded);
         }
     }
 
-    public static FamilyTreeData load() {
-        try (FileReader reader = new FileReader(FILE_NAME)) {
-            return gson.fromJson(reader, FamilyTreeData.class);
-        } catch (IOException e) {
-            // File may not exist yet — return empty tree
-            return new FamilyTreeData();
-        }
+    public void saveToFile(String filename) {
+        FamilyTreeIO.save(persons, filename);
     }
 }

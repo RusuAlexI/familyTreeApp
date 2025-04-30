@@ -1,11 +1,17 @@
 package com.familytree;
+import lombok.Data;
 
+import java.util.ArrayList;
+import java.util.List;
+
+@Data
 public class Person {
     private String id;
     private String name;
     private String dateOfBirth;
     private String dateOfDeath;
     private String gender;
+    private List<String> parentIds;
 
     public Person(String id, String name, String dateOfBirth, String dateOfDeath, String gender) {
         this.id = id;
@@ -13,10 +19,7 @@ public class Person {
         this.dateOfBirth = dateOfBirth;
         this.dateOfDeath = dateOfDeath;
         this.gender = gender;
-    }
-
-    public Person(String name, String dateOfBirth, String dateOfDeath, String gender) {
-        this(java.util.UUID.randomUUID().toString(), name, dateOfBirth, dateOfDeath, gender);
+        this.parentIds = new ArrayList<>();
     }
 
     public String getId() {
@@ -39,19 +42,17 @@ public class Person {
         return gender;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public List<String> getParentIds() {
+        return parentIds;
     }
 
-    public void setDateOfBirth(String dateOfBirth) {
-        this.dateOfBirth = dateOfBirth;
+    public void addParentId(String parentId) {
+        if (!parentIds.contains(parentId)) {
+            parentIds.add(parentId);
+        }
     }
 
-    public void setDateOfDeath(String dateOfDeath) {
-        this.dateOfDeath = dateOfDeath;
-    }
-
-    public void setGender(String gender) {
-        this.gender = gender;
+    public void removeParentId(String parentId) {
+        parentIds.remove(parentId);
     }
 }

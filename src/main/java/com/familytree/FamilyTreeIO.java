@@ -1,39 +1,36 @@
 package com.familytree;
 
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.reflect.TypeToken;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
+import java.lang.reflect.Type;
+import java.util.List;
 
 public class FamilyTreeIO {
 
-    public static void saveTree(FamilyTreeData treeData, String fileName) {
-        try (FileWriter writer = new FileWriter(fileName)) {
-            // Create a Gson object for serialization
-            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
-            // Serialize the object to JSON and write to file
-            gson.toJson(treeData, writer);
-            System.out.println("Tree data saved successfully to " + fileName);
-            System.out.println("Saving to file: " + new File("familytree.json").getAbsolutePath());
-// Check this print
+    public static void save(List<Person> persons, String filename) {
+        try (Writer writer = new FileWriter(filename)) {
+            gson.toJson(persons, writer);
+            System.out.println("Saved to " + filename);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    public static FamilyTreeData loadTree(String fileName) {
-        try (FileReader reader = new FileReader(fileName)) {
-            // Create a Gson object for deserialization
-            Gson gson = new Gson();
-            FamilyTreeData data = gson.fromJson(reader, FamilyTreeData.class);
-            return data != null ? data : new FamilyTreeData();
+    public static List<Person> load(String filename) {
+        try (Reader reader = new FileReader(filename)) {
+            Type listType = new TypeToken<List<Person>>() {}.getType();
+            List<Person> data = gson.fromJson(reader, listType);
+            System.out.println("Loaded from " + filename);
+            return data;
         } catch (IOException e) {
-            System.out.println("No saved file found, starting fresh.");
-            return new FamilyTreeData();  // Return empty tree if file doesn't exist or there's an error
+            e.printStackTrace();
+            return null;
         }
     }
 }

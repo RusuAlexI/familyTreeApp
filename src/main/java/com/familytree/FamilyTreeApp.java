@@ -1,125 +1,140 @@
 package com.familytree;
 
 import javafx.application.Application;
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
-import javafx.scene.canvas.Canvas;
 import javafx.scene.control.*;
-import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
+import java.util.UUID;
+
 public class FamilyTreeApp extends Application {
 
-    private ListView<Person> listView;
+    private ListView<Person> personListView;
     private TreeVisualizer treeVisualizer;
+
+
 
     @Override
     public void start(Stage primaryStage) {
-        primaryStage.setTitle("Family Tree Creator");
+        FamilyTreeData.getInstance().loadData(); // Load JSON data
 
-        // Left side: ListView and Buttons
-        VBox leftPane = new VBox(10);
-        leftPane.setPadding(new Insets(10));
+        BorderPane root = new BorderPane();
+        root.setPadding(new Insets(10));
 
-        listView = new ListView<>();
-        listView.getItems().addAll(FamilyTreeData.getInstance().getPersons());
+        personListView = new ListView<>();
+        personListView.getItems().addAll(FamilyTreeData.getInstance().getPersons());
+        personListView.setPrefWidth(200);
+
+        treeVisualizer = new TreeVisualizer();
+        treeVisualizer.drawTree(FamilyTreeData.getInstance().getPersons());
+
+        VBox controls = new VBox(10);
+        controls.setPadding(new Insets(10));
+
+        Button addRelationshipButton = new Button("Add Relationship");
+        addRelationshipButton.setOnAction(e -> openRelationshipDialog());
 
         Button addButton = new Button("Add Person");
-        Button editButton = new Button("Edit Person");
-        Button deleteButton = new Button("Delete Person");
+        addButton.setOnAction(e -> {
+            showPersonDialog(null);
+        });
 
-        leftPane.getChildren().addAll(listView, addButton, editButton, deleteButton);
-
-        // Center: TreeVisualizer
-        treeVisualizer = new TreeVisualizer();
-        ScrollPane scrollPane = new ScrollPane(treeVisualizer);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setFitToHeight(true);
-
-        HBox root = new HBox(10);
-        root.setPadding(new Insets(10));
-        root.getChildren().addAll(leftPane, scrollPane);
-
-        Scene scene = new Scene(root, 1400, 800);
-        primaryStage.setScene(scene);
-        primaryStage.show();
-
-        // Button actions
-        addButton.setOnAction(e -> showAddPersonDialog());
-        editButton.setOnAction(e -> showEditPersonDialog());
-        deleteButton.setOnAction(e -> deleteSelectedPerson());
-
-        // Double-click to edit
-        listView.setOnMouseClicked(event -> {
-            if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                showEditPersonDialog();
+        Button editButton = new Button("Edit Selected");
+        editButton.setOnAction(e -> {
+            Person selected = personListView.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                showPersonDialog(selected);
             }
         });
+
+        Button deleteButton = new Button("Delete Selected");
+        deleteButton.setOnAction(e -> {
+            Person selected = personListView.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                FamilyTreeData.getInstance().removePerson(selected);
+                refreshView();
+            }
+        });
+
+        controls.getChildren().addAll(addButton, editButton, deleteButton);
+
+        root.setLeft(new VBox(new Label("Persons:"), personListView, controls));
+        root.setCenter(treeVisualizer);
+
+        Scene scene = new Scene(root, 1000, 600);
+        primaryStage.setTitle("Family Tree Builder");
+        primaryStage.setScene(scene);
+        primaryStage.show();
     }
 
-    private void refreshList() {
-        listView.getItems().setAll(FamilyTreeData.getInstance().getPersons());
+    private void openRelationshipDialog() {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Add Relationship");
+
+        ComboBox<Person> fromBox = new ComboBox<>(FXCollections.observableArrayList(FamilyTreeData.getInstance().getPersons()));
+        ComboBox<Person> toBox = new ComboBox<>(FXCollections.observableArrayList(FamilyTreeData.getInstance().getPersons()));
+        ComboBox<String> typeBox = new ComboBox<>(FXCollections.observableArrayList("Parent", "Spouse"));
+
+        fromBox.setPromptText("From");
+        toBox.setPromptText("To");
+        typeBox.setPromptText("Type");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 150, 10, 10));
+
+        grid.add(new Label("From:"), 0, 0);
+        grid.add(fromBox, 1, 0);
+        grid.add(new Label("To:"), 0, 1);
+        grid.add(toBox, 1, 1);
+        grid.add(new Label("Type:"), 0, 2);
+        grid.add(typeBox, 1, 2);
+
+        dialog.getDialogPane().setContent(grid);
+
+        ButtonType addButtonType = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == addButtonType) {
+                Person from = fromBox.getValue();
+                Person to = toBox.getValue();
+                String type = typeBox.getValue();
+
+                if (from != null && to != null && type != null) {
+                    FamilyTreeData.getInstance().addRelationship(new Relationship(from.getId(), to.getId(), type));
+                    refreshView(); // Refresh visualization
+                }
+            }
+            return null;
+        });
+
+        dialog.showAndWait();
     }
 
-    private void showAddPersonDialog() {
+    private void showPersonDialog(Person person) {
         Dialog<Person> dialog = new Dialog<>();
-        dialog.setTitle("Add New Person");
+        dialog.setTitle(person == null ? "Add Person" : "Edit Person");
 
         Label nameLabel = new Label("Name:");
         TextField nameField = new TextField();
-        Label dobLabel = new Label("Date of Birth (yyyy-mm-dd):");
+        Label dobLabel = new Label("Date of Birth:");
         TextField dobField = new TextField();
-        Label dodLabel = new Label("Date of Death (optional, yyyy-mm-dd):");
+        Label dodLabel = new Label("Date of Death:");
         TextField dodField = new TextField();
         Label genderLabel = new Label("Gender:");
         TextField genderField = new TextField();
 
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.add(nameLabel, 0, 0);
-        grid.add(nameField, 1, 0);
-        grid.add(dobLabel, 0, 1);
-        grid.add(dobField, 1, 1);
-        grid.add(dodLabel, 0, 2);
-        grid.add(dodField, 1, 2);
-        grid.add(genderLabel, 0, 3);
-        grid.add(genderField, 1, 3);
-
-        dialog.getDialogPane().setContent(grid);
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-
-        dialog.setResultConverter(button -> {
-            if (button == ButtonType.OK) {
-                return new Person(nameField.getText(), dobField.getText(), dodField.getText(), genderField.getText());
-            }
-            return null;
-        });
-
-        dialog.showAndWait().ifPresent(person -> {
-            treeVisualizer.addPerson(person);
-            refreshList();
-        });
-    }
-
-    private void showEditPersonDialog() {
-        Person selected = listView.getSelectionModel().getSelectedItem();
-        if (selected == null) {
-            return;
+        if (person != null) {
+            nameField.setText(person.getName());
+            dobField.setText(person.getDateOfBirth());
+            dodField.setText(person.getDateOfDeath());
+            genderField.setText(person.getGender());
         }
-
-        Dialog<Person> dialog = new Dialog<>();
-        dialog.setTitle("Edit Person");
-
-        Label nameLabel = new Label("Name:");
-        TextField nameField = new TextField(selected.getName());
-        Label dobLabel = new Label("Date of Birth (yyyy-mm-dd):");
-        TextField dobField = new TextField(selected.getDateOfBirth());
-        Label dodLabel = new Label("Date of Death (optional, yyyy-mm-dd):");
-        TextField dodField = new TextField(selected.getDateOfDeath());
-        Label genderLabel = new Label("Gender:");
-        TextField genderField = new TextField(selected.getGender());
 
         GridPane grid = new GridPane();
         grid.setHgap(10);
@@ -136,30 +151,31 @@ public class FamilyTreeApp extends Application {
         dialog.getDialogPane().setContent(grid);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
-        dialog.setResultConverter(button -> {
-            if (button == ButtonType.OK) {
-                selected.setName(nameField.getText());
-                selected.setDateOfBirth(dobField.getText());
-                selected.setDateOfDeath(dodField.getText());
-                selected.setGender(genderField.getText());
-                return selected;
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == ButtonType.OK) {
+                String id = person == null ? UUID.randomUUID().toString() : person.getId();
+                return new Person(id, nameField.getText(), dobField.getText(), dodField.getText(), genderField.getText());
             }
             return null;
         });
 
-        dialog.showAndWait().ifPresent(person -> {
-            treeVisualizer.editPerson(person);
-            refreshList();
+        dialog.showAndWait().ifPresent(result -> {
+            if (person == null) {
+                FamilyTreeData.getInstance().addPerson(result);
+            } else {
+                person.setName(result.getName());
+                person.setDateOfBirth(result.getDateOfBirth());
+                person.setDateOfDeath(result.getDateOfDeath());
+                person.setGender(result.getGender());
+            }
+            refreshView();
         });
     }
 
-    private void deleteSelectedPerson() {
-        Person selected = listView.getSelectionModel().getSelectedItem();
-        if (selected == null) {
-            return;
-        }
-        treeVisualizer.deletePerson(selected);
-        refreshList();
+    private void refreshView() {
+        personListView.getItems().setAll(FamilyTreeData.getInstance().getPersons());
+        treeVisualizer.drawTree(FamilyTreeData.getInstance().getPersons());
+        FamilyTreeData.getInstance().saveData(); // Save to JSON
     }
 
     public static void main(String[] args) {
