@@ -13,12 +13,12 @@ public class FamilyTreeManager {
 
     public void addPerson(Person p) {
         people.add(p);
-        FamilyTreeData.getInstance().saveData();
+//        FamilyTreeData.getInstance().saveData();
     }
 
     public void removePerson(Person p) {
         people.remove(p);
-        FamilyTreeData.getInstance().saveData();
+//        FamilyTreeData.getInstance().saveData();
     }
 
     public List<Person> getAllPeople() {

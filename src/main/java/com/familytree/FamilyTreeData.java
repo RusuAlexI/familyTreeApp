@@ -1,23 +1,20 @@
 package com.familytree;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 
-import java.io.*;
-import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class FamilyTreeData {
 
-    private List<Relationship> relationships = new ArrayList<>();
     private static FamilyTreeData instance;
-    private List<Person> persons;
-    private final String FILE = "family_tree.json";
+    private final ObservableList<Person> persons;
+    private final Map<Person, Relationship> relationships;
 
     private FamilyTreeData() {
-        persons = new ArrayList<>();
-        loadData();
+        persons = FXCollections.observableArrayList();
+        relationships = new HashMap<>();
     }
 
     public static FamilyTreeData getInstance() {
@@ -27,43 +24,34 @@ public class FamilyTreeData {
         return instance;
     }
 
-    public void addRelationship(Relationship r) {
-        relationships.add(r);
-    }
-
-    public List<Relationship> getRelationships() {
-        return relationships;
-    }
-
-    public List<Person> getPersons() {
+    public ObservableList<Person> getPersons() {
         return persons;
-    }
-
-    public void saveData() {
-        try (Writer writer = new FileWriter(FILE)) {
-            new Gson().toJson(persons, writer);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void loadData() {
-        File file = new File(FILE);
-        if (file.exists()) {
-            try (Reader reader = new FileReader(file)) {
-                Type type = new TypeToken<List<Person>>() {}.getType();
-                persons = new Gson().fromJson(reader, type);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
     }
 
     public void addPerson(Person person) {
         persons.add(person);
-    }
-    public void removePerson(Person person) {
-        persons.remove(person);
+        relationships.putIfAbsent(person, new Relationship(null,null,null));
     }
 
+    public void removePerson(Person person) {
+        persons.remove(person);
+        relationships.remove(person);
+            relationships.values().remove(person);
+    }
+
+    public Relationship getRelationship(Person person) {
+        return relationships.get(person);
+    }
+
+    public void addParentChildRelation(Person parent, Person child) {
+        relationships.putIfAbsent(parent, new Relationship(null,null,null));
+        relationships.putIfAbsent(child, new Relationship(null,null,null));
+        relationships.get(parent).setToId(child.getName());
+        relationships.get(child).setFromId(parent.getName());
+    }
+
+    public void clear() {
+        persons.clear();
+        relationships.clear();
+    }
 }

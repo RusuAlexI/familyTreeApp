@@ -1,87 +1,91 @@
 package com.familytree;
 
-import javafx.scene.canvas.Canvas;
-import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.Parent;
+import javafx.scene.control.Label;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
+import javafx.scene.shape.Line;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-public class TreeVisualizer extends Canvas {
+public class TreeVisualizer {
+    private final FamilyTreeData data;
+    private final Pane canvas;
+    private final Map<Person, VBox> personNodes = new HashMap<>();
+    private Person selectedPerson;
 
-    private Map<Person, TreeLayout.Position> layoutMap = new HashMap<>();
-
-    public TreeVisualizer() {
-        this.setWidth(1200);
-        this.setHeight(800);
+    public TreeVisualizer(FamilyTreeData data) {
+        this.data = data;
+        this.canvas = new Pane();
+        refresh();
     }
 
-    public void drawTree(List<Person> persons) {
-        layoutMap = TreeLayout.computeLayout(persons);
+    public Parent getView() {
+        return canvas;
+    }
 
-        GraphicsContext gc = getGraphicsContext2D();
-        gc.clearRect(0, 0, getWidth(), getHeight());
+    public Person getSelectedPerson() {
+        return selectedPerson;
+    }
 
-        gc.setStroke(Color.GRAY);
-        gc.setLineWidth(2);
-        gc.setFont(Font.font(14));
+    public void refresh() {
+        canvas.getChildren().clear();
+        personNodes.clear();
 
-        // 1. Draw relationships
-        for (Person child : persons) {
-            if (child.getParentIds() != null) {
-                for (String parentId : child.getParentIds()) {
-                    Person parent = findPersonById(parentId);
-                    if (parent != null) {
-                        TreeLayout.Position from = layoutMap.get(parent);
-                        TreeLayout.Position to = layoutMap.get(child);
-                        if (from != null && to != null) {
-                            gc.strokeLine(from.getX() + 60, from.getY() + 30, to.getX() + 60, to.getY());
-                        }
-                    }
-                }
-            }
+        double x = 50;
+        double y = 50;
+        for (Person person : data.getPersons()) {
+            VBox node = createPersonNode(person, x, y);
+            personNodes.put(person, node);
+            canvas.getChildren().add(node);
+            x += 200;
         }
 
-        // 2. Draw nodes (people)
-        for (Person person : persons) {
-            TreeLayout.Position pos = layoutMap.get(person);
-            if (pos != null) {
-                gc.setFill(Color.LIGHTBLUE);
-                gc.fillRoundRect(pos.getX(), pos.getY(), 120, 60, 10, 10);
-                gc.setStroke(Color.BLACK);
-                gc.strokeRoundRect(pos.getX(), pos.getY(), 120, 60, 10, 10);
-
-                gc.setFill(Color.BLACK);
-                String text = person.getName() + "\n" +
-                        "Born: " + (person.getDateOfBirth() != null ? person.getDateOfBirth() : "-") + "\n" +
-                        "Gender: " + (person.getGender() != null ? person.getGender() : "-");
-                gc.fillText(text, pos.getX() + 5, pos.getY() + 15);
-            }
-        }
-
-        List<Relationship> relationships = FamilyTreeData.getInstance().getRelationships();
-        for (Relationship r : relationships) {
-            Person from = findPersonById(r.getFromId());
-            Person to = findPersonById(r.getToId());
-            if (from != null && to != null) {
-                TreeLayout.Position fromPos = layoutMap.get(from.getId());
-                TreeLayout.Position toPos = layoutMap.get(to.getId());
-
-                if (fromPos != null && toPos != null) {
-                    gc.setStroke(r.getType().equals("Parent") ? Color.BLUE : Color.GREEN);
-                    gc.setLineWidth(2);
-                    gc.strokeLine(fromPos.getX() + 50, fromPos.getY() + 50, toPos.getX() + 50, toPos.getY() + 50);
+        for (Person child : data.getPersons()) {
+            for (Person parent : child.getParents()) {
+                VBox parentNode = personNodes.get(parent);
+                VBox childNode = personNodes.get(child);
+                if (parentNode != null && childNode != null) {
+                    Line line = new Line();
+                    line.setStartX(parentNode.getLayoutX() + 75);
+                    line.setStartY(parentNode.getLayoutY() + 75);
+                    line.setEndX(childNode.getLayoutX() + 75);
+                    line.setEndY(childNode.getLayoutY());
+                    canvas.getChildren().add(line);
                 }
             }
         }
     }
 
-    private Person findPersonById(String id) {
-        return FamilyTreeData.getInstance().getPersons().stream()
-                .filter(p -> p.getId().equals(id))
-                .findFirst()
-                .orElse(null);
+    private VBox createPersonNode(Person person, double x, double y) {
+        VBox box = new VBox();
+        box.setLayoutX(x);
+        box.setLayoutY(y);
+        box.setSpacing(5);
+        box.setStyle("-fx-border-color: black; -fx-padding: 10; -fx-background-color: lightblue;");
+
+        Label nameLabel = new Label("Name: " + person.getName());
+        Label dobLabel = new Label("Born: " + person.getDateOfBirth());
+        Label dodLabel = new Label("Died: " + (person.getDateOfDeath() == null ? "N/A" : person.getDateOfDeath()));
+        Label genderLabel = new Label("Gender: " + person.getGender());
+
+        box.getChildren().addAll(nameLabel, dobLabel, dodLabel, genderLabel);
+
+        box.addEventHandler(MouseEvent.MOUSE_CLICKED, e -> {
+            selectedPerson = person;
+            highlightSelected(box);
+        });
+
+        return box;
+    }
+
+    private void highlightSelected(VBox selectedBox) {
+        for (VBox box : personNodes.values()) {
+            box.setStyle("-fx-border-color: black; -fx-padding: 10; -fx-background-color: lightblue;");
+        }
+        selectedBox.setStyle("-fx-border-color: red; -fx-padding: 10; -fx-background-color: lightyellow;");
     }
 }

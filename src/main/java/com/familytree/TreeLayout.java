@@ -1,43 +1,34 @@
 package com.familytree;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class TreeLayout {
+    private Map<String, Position> layoutMap = new HashMap<>();
 
-    public static class Position {
-        private double x;
-        private double y;
+    public Map<String, Position> layout(List<Person> persons, List<Relationship> relationships) {
+        layoutMap.clear();
 
-        public Position(double x, double y) {
-            this.x = x;
-            this.y = y;
+        int x = 50;
+        int y = 50;
+        int verticalSpacing = 150;
+        int horizontalSpacing = 200;
+
+        for (int i = 0; i < persons.size(); i++) {
+            Person p = persons.get(i);
+            layoutMap.put(p.getName(), new Position(x, y, p.getName()));
+            x += horizontalSpacing;
+            if (x > 800) {
+                x = 50;
+                y += verticalSpacing;
+            }
         }
 
-        public double getX() { return x; }
-
-        public double getY() { return y; }
-
-        public void setX(double x) { this.x = x; }
-
-        public void setY(double y) { this.y = y; }
+        return layoutMap;
     }
 
-    private static final double NODE_WIDTH = 120;
-    private static final double NODE_HEIGHT = 60;
-    private static final double H_SPACING = 40;
-    private static final double V_SPACING = 100;
-
-    public static Map<Person, Position> computeLayout(List<Person> persons) {
-        Map<Person, Position> layout = new HashMap<>();
-
-        double x = 50;
-        double y = 50;
-
-        for (Person p : persons) {
-            layout.put(p, new Position(x, y));
-            x += NODE_WIDTH + H_SPACING;
-        }
-
-        return layout;
+    public Position getPosition(String personId) {
+        return layoutMap.get(personId);
     }
 }

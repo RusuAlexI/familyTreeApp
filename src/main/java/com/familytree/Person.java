@@ -1,58 +1,80 @@
 package com.familytree;
-import lombok.Data;
-
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-@Data
 public class Person {
-    private String id;
     private String name;
-    private String dateOfBirth;
-    private String dateOfDeath;
+    private LocalDate dateOfBirth;
+    private LocalDate dateOfDeath;
     private String gender;
-    private List<String> parentIds;
 
-    public Person(String id, String name, String dateOfBirth, String dateOfDeath, String gender) {
-        this.id = id;
+    private final List<Person> parents = new ArrayList<>();
+    private final List<Person> children = new ArrayList<>();
+
+    public Person(String name, LocalDate dateOfBirth, LocalDate dateOfDeath, String gender) {
         this.name = name;
         this.dateOfBirth = dateOfBirth;
         this.dateOfDeath = dateOfDeath;
         this.gender = gender;
-        this.parentIds = new ArrayList<>();
-    }
-
-    public String getId() {
-        return id;
     }
 
     public String getName() {
         return name;
     }
 
-    public String getDateOfBirth() {
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public LocalDate getDateOfBirth() {
         return dateOfBirth;
     }
 
-    public String getDateOfDeath() {
+    public void setDateOfBirth(LocalDate dateOfBirth) {
+        this.dateOfBirth = dateOfBirth;
+    }
+
+    public LocalDate getDateOfDeath() {
         return dateOfDeath;
+    }
+
+    public void setDateOfDeath(LocalDate dateOfDeath) {
+        this.dateOfDeath = dateOfDeath;
     }
 
     public String getGender() {
         return gender;
     }
 
-    public List<String> getParentIds() {
-        return parentIds;
+    public void setGender(String gender) {
+        this.gender = gender;
     }
 
-    public void addParentId(String parentId) {
-        if (!parentIds.contains(parentId)) {
-            parentIds.add(parentId);
+    public List<Person> getParents() {
+        return parents;
+    }
+
+    public List<Person> getChildren() {
+        return children;
+    }
+
+    public void addParent(Person parent) {
+        if (!parents.contains(parent)) {
+            parents.add(parent);
+            parent.addChild(this); // maintain bidirectional relationship
         }
     }
 
-    public void removeParentId(String parentId) {
-        parentIds.remove(parentId);
+    public void addChild(Person child) {
+        if (!children.contains(child)) {
+            children.add(child);
+            child.addParent(this); // avoid infinite recursion via check
+        }
+    }
+
+    @Override
+    public String toString() {
+        return name;
     }
 }

@@ -1,9 +1,12 @@
 package com.familytree;
 
+import lombok.Data;
+
+@Data
 public class Relationship {
     private String fromId;
     private String toId;
-    private String type; // "Parent" or "Spouse"
+    private String type; // e.g., Parent, Spouse, etc.
 
     public Relationship(String fromId, String toId, String type) {
         this.fromId = fromId;
