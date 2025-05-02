@@ -11,14 +11,20 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TreeVisualizer {
     private final FamilyTreeData data;
     private final Pane canvas;
     private final Map<Person, VBox> personNodes = new HashMap<>();
     private Person selectedPerson;
+
+    private final List<Line> connectionLines = new ArrayList<>();
+
 
     public TreeVisualizer(FamilyTreeData data) {
         this.data = data;
@@ -37,46 +43,69 @@ public class TreeVisualizer {
     public void refresh() {
         canvas.getChildren().clear();
         personNodes.clear();
+        connectionLines.clear();
 
-        Map<Person, Integer> levels = assignGenerations();
-        Map<Integer, Double> levelY = new HashMap<>();
-        double baseY = 50;
-        double levelHeight = 150;
+        FamilyTreeData data = FamilyTreeData.getInstance();
 
-        for (Integer level : levels.values()) {
-            levelY.put(level, baseY + level * levelHeight);
+        // Find root ancestors (people without parents)
+        List<Person> roots = data.getPersons().stream()
+                .filter(p -> p.getParents().isEmpty())
+                .collect(Collectors.toList());
+
+        double startX = 50;
+        double startY = 50;
+        for (Person root : roots) {
+            startX = layoutTree(root, startX, startY);
         }
 
-        Map<Integer, Integer> levelCounts = new HashMap<>();
+        // Draw lines between parents and children
+        for (Person parent : data.getPersons()) {
+            VBox parentNode = personNodes.get(parent);
+            if (parentNode == null) continue;
 
-        for (Person person : data.getPersons()) {
-            int level = levels.getOrDefault(person, 0);
-            int index = levelCounts.getOrDefault(level, 0);
-            double x = 100 + index * 180;
-            double y = levelY.get(level);
-
-            VBox node = createPersonNode(person, x, y);
-            personNodes.put(person, node);
-            canvas.getChildren().add(node);
-
-            levelCounts.put(level, index + 1);
-        }
-
-        for (Person child : data.getPersons()) {
-            for (Person parent : child.getParents()) {
-                VBox parentNode = personNodes.get(parent);
+            for (Person child : parent.getChildren()) {
                 VBox childNode = personNodes.get(child);
-                if (parentNode != null && childNode != null) {
-                    Line line = new Line();
-                    line.setStartX(parentNode.getLayoutX() + 75);
-                    line.setStartY(parentNode.getLayoutY() + 100); // bottom of parent
-                    line.setEndX(childNode.getLayoutX() + 75);
-                    line.setEndY(childNode.getLayoutY()); // top of child
-                    line.setStroke(Color.GRAY);
-                    canvas.getChildren().add(line);
-                }
+                if (childNode == null) continue;
+
+                double startXLine = parentNode.getLayoutX() + parentNode.getWidth() / 2;
+                double startYLine = parentNode.getLayoutY() + parentNode.getHeight();
+
+                double endXLine = childNode.getLayoutX() + childNode.getWidth() / 2;
+                double endYLine = childNode.getLayoutY();
+
+                Line line = new Line(startXLine, startYLine, endXLine, endYLine);
+                canvas.getChildren().add(line);
             }
         }
+
+        canvas.getChildren().addAll(personNodes.values());
+    }
+
+    private double layoutTree(Person person, double x, double y) {
+        double boxWidth = 150;
+        double boxHeight = 100;
+        double spacingX = 40;
+        double spacingY = 120;
+
+        List<Person> children = person.getChildren();
+        if (children.isEmpty()) {
+            VBox node = createPersonNode(person, x, y);
+            personNodes.put(person, node);
+            return x + boxWidth + spacingX;
+        }
+
+        double currentX = x;
+        double midX = x;
+        for (Person child : children) {
+            currentX = layoutTree(child, currentX, y + spacingY);
+        }
+
+        midX = (x + currentX - spacingX) / 2;
+
+        VBox node = createPersonNode(person, midX, y);
+        personNodes.put(person, node);
+
+        return currentX;
     }
     private VBox createPersonNode(Person person, double x, double y) {
         VBox box = new VBox(4);
