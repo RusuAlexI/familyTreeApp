@@ -44,7 +44,9 @@ public class PersonDialog extends Dialog<Person> {
 
         if (existingPerson != null) {
             nameField.setText(existingPerson.getName());
-            dobPicker.setValue(LocalDate.parse(existingPerson.getDateOfBirth()));
+            if (existingPerson.getDateOfBirth() != null) {
+                dobPicker.setValue(LocalDate.parse(existingPerson.getDateOfBirth()));
+            }
             dodPicker.setValue(LocalDate.parse(existingPerson.getDateOfDeath()));
             genderField.setValue(existingPerson.getGender());
         }

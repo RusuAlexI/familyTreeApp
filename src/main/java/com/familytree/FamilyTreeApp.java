@@ -82,7 +82,7 @@ public class FamilyTreeApp extends Application {
             }
 
             ChoiceDialog<Person> childDialog = new ChoiceDialog<>();
-            childDialog.getItems().addAll(data.getPersons());
+            childDialog.getItems().addAll(FamilyTreeData.getInstance().getPersons());
             childDialog.setTitle("Select Child");
             childDialog.setHeaderText("Choose the child to link to " + parent.getName());
             childDialog.setContentText("Child:");
