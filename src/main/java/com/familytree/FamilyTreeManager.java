@@ -5,23 +5,23 @@ import java.util.List;
 
 public class FamilyTreeManager {
 
-    private List<Person> people;
+    private List<Person> persons;
 
     public FamilyTreeManager() {
-        this.people = FamilyTreeData.getInstance().getPersons();
+        this.persons = FamilyTreeData.getInstance().getPersons();
     }
 
     public void addPerson(Person p) {
-        people.add(p);
+        persons.add(p);
 //        FamilyTreeData.getInstance().saveData();
     }
 
     public void removePerson(Person p) {
-        people.remove(p);
+        persons.remove(p);
 //        FamilyTreeData.getInstance().saveData();
     }
 
-    public List<Person> getAllPeople() {
-        return new ArrayList<>(people);
+    public List<Person> getAllPersons() {
+        return new ArrayList<>(persons);
     }
 }

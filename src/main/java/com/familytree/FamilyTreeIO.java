@@ -1,17 +1,25 @@
 package com.familytree;
 
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.*;
 import java.lang.reflect.Type;
+import java.nio.file.Files;
 import java.util.List;
 
 public class FamilyTreeIO {
 
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+
+    private static final ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+
+    public FamilyTreeIO() {
+    }
 
     public static void save(List<Person> persons, String filename) {
         try (Writer writer = new FileWriter(filename)) {
@@ -32,5 +40,21 @@ public class FamilyTreeIO {
             e.printStackTrace();
             return null;
         }
+    }
+
+    public static void saveToFile(File file, FamilyTreeData data) throws IOException {
+        mapper.writeValue(file, data);
+    }
+
+    public static FamilyTreeData loadFromFile(File file) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        String json = new String(Files.readAllBytes(file.toPath()));
+        System.out.println("DEBUG raw JSON: " + json);
+        FamilyTreeData loaded = mapper.readValue(file, FamilyTreeData.class);
+        System.out.println("DEBUG: loaded.getPersons().size() = " + loaded.getPersons().size());
+        for (Person p : loaded.getPersons()) {
+            System.out.println("DEBUG: Person = " + p.getName());
+        }
+        return loaded;
     }
 }

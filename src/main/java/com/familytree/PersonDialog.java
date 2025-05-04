@@ -44,8 +44,8 @@ public class PersonDialog extends Dialog<Person> {
 
         if (existingPerson != null) {
             nameField.setText(existingPerson.getName());
-            dobPicker.setValue(existingPerson.getDateOfBirth());
-            dodPicker.setValue(existingPerson.getDateOfDeath());
+            dobPicker.setValue(LocalDate.parse(existingPerson.getDateOfBirth()));
+            dodPicker.setValue(LocalDate.parse(existingPerson.getDateOfDeath()));
             genderField.setValue(existingPerson.getGender());
         }
 
@@ -66,7 +66,12 @@ public class PersonDialog extends Dialog<Person> {
                         return null;
                     }
 
-                    return new Person(name, dob, dod, gender);
+                    Person person = new Person();
+                    person.setName(name);
+                    person.setDateOfBirth(dob.toString());
+                    person.setDateOfDeath(dod != null ? dod.toString() : null);
+                    person.setGender(gender);
+                    return person;
                 }
                 return null;
             }

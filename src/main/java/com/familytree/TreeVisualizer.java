@@ -18,19 +18,19 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class TreeVisualizer {
-    private final FamilyTreeData data;
     private final Pane canvas;
     private final Map<Person, VBox> personNodes = new HashMap<>();
     private Person selectedPerson;
 
+
     private final List<Line> connectionLines = new ArrayList<>();
 
 
-    public TreeVisualizer(FamilyTreeData data) {
-        this.data = data;
+    public TreeVisualizer() {
         this.canvas = new Pane();
         refresh();
     }
+
 
     public Parent getView() {
         return canvas;
@@ -40,15 +40,23 @@ public class TreeVisualizer {
         return selectedPerson;
     }
 
+//    public void setData(FamilyTreeData loadedData) {
+//        this.data = loadedData;
+//        refresh();
+//    }
+
+
+
     public void refresh() {
+        System.out.println("Refreshing... persons count: " + FamilyTreeData.getInstance().getPersons().size());
+
         canvas.getChildren().clear();
         personNodes.clear();
         connectionLines.clear();
 
-        FamilyTreeData data = FamilyTreeData.getInstance();
 
         // Find root ancestors (people without parents)
-        List<Person> roots = data.getPersons().stream()
+        List<Person> roots = FamilyTreeData.getInstance().getPersons().stream()
                 .filter(p -> p.getParents().isEmpty())
                 .collect(Collectors.toList());
 
@@ -59,7 +67,7 @@ public class TreeVisualizer {
         }
 
         // Draw lines between parents and children
-        for (Person parent : data.getPersons()) {
+        for (Person parent : FamilyTreeData.getInstance().getPersons()) {
             VBox parentNode = personNodes.get(parent);
             if (parentNode == null) continue;
 
@@ -135,7 +143,7 @@ public class TreeVisualizer {
 
     private Map<Person, Integer> assignGenerations() {
         Map<Person, Integer> levels = new HashMap<>();
-        for (Person person : data.getPersons()) {
+        for (Person person : FamilyTreeData.getInstance().getPersons()) {
             assignLevelRecursive(person, 0, levels);
         }
         return levels;
@@ -157,4 +165,6 @@ public class TreeVisualizer {
         }
         selectedBox.setStyle("-fx-border-color: red; -fx-padding: 10; -fx-background-color: lightyellow;");
     }
+
+
 }

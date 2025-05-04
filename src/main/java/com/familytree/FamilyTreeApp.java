@@ -1,17 +1,22 @@
 package com.familytree;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Optional;
 
 public class FamilyTreeApp extends Application {
 
     private final FamilyTreeData data = FamilyTreeData.getInstance();
-    private final TreeVisualizer visualizer = new TreeVisualizer(data);
+    private final TreeVisualizer visualizer = new TreeVisualizer();
 
     @Override
     public void start(Stage primaryStage) {
@@ -27,8 +32,10 @@ public class FamilyTreeApp extends Application {
         Button editButton = new Button("Edit Person");
         Button deleteButton = new Button("Delete Person");
         Button addRelationButton = new Button("Add Parent-Child");
+        Button exportBtn = new Button("Export");
+        Button importBtn = new Button("Import");
 
-        toolBar.getItems().addAll(addButton, editButton, deleteButton, addRelationButton);
+        toolBar.getItems().addAll(addButton, editButton, deleteButton, addRelationButton,exportBtn,importBtn);
         root.setTop(toolBar);
 
         addButton.setOnAction(e -> {
@@ -87,6 +94,45 @@ public class FamilyTreeApp extends Application {
             });
         });
 
+        exportBtn.setOnAction(e -> {
+            System.out.println("Exporting persons:");
+            for (Person p : FamilyTreeData.getInstance().getPersons()) {
+                System.out.println(p.getName()); // or a toString() implementation
+            }
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Export Family Tree");
+            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
+            File file = fileChooser.showSaveDialog(primaryStage);
+            if (file != null) {
+                try {
+                    ObjectMapper mapper = new ObjectMapper();
+                    mapper.enable(SerializationFeature.INDENT_OUTPUT);
+                    mapper.writeValue(file, FamilyTreeData.getInstance());
+                    System.out.println("Export successful.");
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+
+        importBtn.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Load Family Tree");
+            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON files", "*.json"));
+            File file = fileChooser.showOpenDialog(primaryStage);
+            if (file != null) {
+                try {
+                    debugLoadTest(file); // Just add this before FamilyTreeIO.loadFromFile()
+
+                    FamilyTreeData loadedData = FamilyTreeIO.loadFromFile(file);
+                    FamilyTreeData.setInstance(loadedData); // replace current data
+                    visualizer.refresh();
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+
         primaryStage.setScene(new Scene(root, 1000, 600));
         primaryStage.show();
     }
@@ -97,6 +143,18 @@ public class FamilyTreeApp extends Application {
         alert.setContentText(msg);
         alert.showAndWait();
     }
+
+    public static void debugLoadTest(File file) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            FamilyTreeData loaded = mapper.readValue(file, FamilyTreeData.class);
+            System.out.println(">>> DEBUG direct load: " + loaded);
+            System.out.println(">>> DEBUG person count: " + (loaded.getPersons() == null ? "null" : loaded.getPersons().size()));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 
     public static void main(String[] args) {
         launch(args);
