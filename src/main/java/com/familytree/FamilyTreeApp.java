@@ -16,14 +16,15 @@ import java.util.Optional;
 public class FamilyTreeApp extends Application {
 
     private final FamilyTreeData data = FamilyTreeData.getInstance();
-    private final TreeVisualizer visualizer = new TreeVisualizer();
-
+//    private final TreeVisualizer visualizer = new TreeVisualizer();
+private final FamilyTreePane visualizer = new FamilyTreePane();
     @Override
     public void start(Stage primaryStage) {
         primaryStage.setTitle("Family Tree Application");
 
         BorderPane root = new BorderPane();
-        root.setCenter(visualizer.getView());
+//        root.setCenter(visualizer.getView());
+        root.setCenter(visualizer);
 
         // Top menu bar
         ToolBar toolBar = new ToolBar();
@@ -43,7 +44,7 @@ public class FamilyTreeApp extends Application {
             Optional<Person> result = dialog.showAndWait();
             result.ifPresent(person -> {
                 data.addPerson(person);
-                visualizer.refresh();
+                visualizer.drawTree(FamilyTreeData.getInstance().getPersons());
             });
         });
 
@@ -60,7 +61,7 @@ public class FamilyTreeApp extends Application {
                 selected.setDateOfBirth(updated.getDateOfBirth());
                 selected.setDateOfDeath(updated.getDateOfDeath());
                 selected.setGender(updated.getGender());
-                visualizer.refresh();
+                visualizer.drawTree(FamilyTreeData.getInstance().getPersons());
             });
         });
 
@@ -71,7 +72,7 @@ public class FamilyTreeApp extends Application {
                 return;
             }
             data.removePerson(selected);
-            visualizer.refresh();
+            visualizer.drawTree(FamilyTreeData.getInstance().getPersons());
         });
 
         addRelationButton.setOnAction(e -> {
@@ -90,7 +91,7 @@ public class FamilyTreeApp extends Application {
             Optional<Person> childOpt = childDialog.showAndWait();
             childOpt.ifPresent(child -> {
                 child.addParent(parent);
-                visualizer.refresh();
+                visualizer.drawTree(FamilyTreeData.getInstance().getPersons());
             });
         });
 
@@ -126,7 +127,7 @@ public class FamilyTreeApp extends Application {
 
                     FamilyTreeData loadedData = FamilyTreeIO.loadFromFile(file);
                     FamilyTreeData.setInstance(loadedData); // replace current data
-                    visualizer.refresh();
+                    visualizer.drawTree(FamilyTreeData.getInstance().getPersons());
                 } catch (IOException ex) {
                     ex.printStackTrace();
                 }
