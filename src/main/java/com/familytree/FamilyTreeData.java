@@ -55,7 +55,7 @@ public class FamilyTreeData {
         persons.remove(person);
         for (Person p : persons) {
             p.getParents().remove(person);
-            p.getChildren().remove(person);
+//            p.getChildren().remove(person);
         }
     }
 
@@ -65,4 +65,6 @@ public class FamilyTreeData {
                 .findFirst()
                 .orElse(null);
     }
+
+
 }

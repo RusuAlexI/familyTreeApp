@@ -71,7 +71,7 @@ public class TreeVisualizer {
             VBox parentNode = personNodes.get(parent);
             if (parentNode == null) continue;
 
-            for (Person child : parent.getChildren()) {
+            for (Person child : getChildren(parent, FamilyTreeData.getInstance().getPersons())) {
                 VBox childNode = personNodes.get(child);
                 if (childNode == null) continue;
 
@@ -95,7 +95,7 @@ public class TreeVisualizer {
         double spacingX = 40;
         double spacingY = 120;
 
-        List<Person> children = person.getChildren();
+        List<Person> children = getChildren(person, FamilyTreeData.getInstance().getPersons());
         if (children.isEmpty()) {
             VBox node = createPersonNode(person, x, y);
             personNodes.put(person, node);
@@ -154,7 +154,7 @@ public class TreeVisualizer {
             return;
         }
         levels.put(person, level);
-        for (Person child : person.getChildren()) {
+        for (Person child : getChildren(person, FamilyTreeData.getInstance().getPersons())) {
             assignLevelRecursive(child, level + 1, levels);
         }
     }
@@ -165,6 +165,14 @@ public class TreeVisualizer {
         }
         selectedBox.setStyle("-fx-border-color: red; -fx-padding: 10; -fx-background-color: lightyellow;");
     }
-
+    private List<Person> getChildren(Person person, List<Person> allPersons) {
+        List<Person> children = new ArrayList<>();
+        for (Person p : allPersons) {
+            if (p.getParents().contains(person)) {
+                children.add(p);
+            }
+        }
+        return children;
+    }
 
 }

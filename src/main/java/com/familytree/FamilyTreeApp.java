@@ -24,7 +24,11 @@ private final FamilyTreePane visualizer = new FamilyTreePane();
 
         BorderPane root = new BorderPane();
 //        root.setCenter(visualizer.getView());
-        root.setCenter(visualizer);
+        ScrollPane scrollPane = new ScrollPane(visualizer);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
+        root.setCenter(scrollPane);
+        visualizer.setPrefSize(2000, 1000); // Large enough for testing layout
 
         // Top menu bar
         ToolBar toolBar = new ToolBar();
@@ -118,21 +122,40 @@ private final FamilyTreePane visualizer = new FamilyTreePane();
 
         importBtn.setOnAction(e -> {
             FileChooser fileChooser = new FileChooser();
-            fileChooser.setTitle("Load Family Tree");
-            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON files", "*.json"));
-            File file = fileChooser.showOpenDialog(primaryStage);
-            if (file != null) {
-                try {
-                    debugLoadTest(file); // Just add this before FamilyTreeIO.loadFromFile()
+            fileChooser.setTitle("Import Family Tree");
+            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
+            File selectedFile = fileChooser.showOpenDialog(primaryStage);
 
-                    FamilyTreeData loadedData = FamilyTreeIO.loadFromFile(file);
-                    FamilyTreeData.setInstance(loadedData); // replace current data
+            if (selectedFile != null) {
+                try {
+                    ObjectMapper mapper = new ObjectMapper();
+                    FamilyTreeData loaded = mapper.readValue(selectedFile, FamilyTreeData.class);
+
+                    System.out.println(">>> DEBUG direct load: " + loaded);
+                    System.out.println(">>> DEBUG person count: " + loaded.getPersons().size());
+
+                    for (Person p : loaded.getPersons()) {
+                        System.out.println("DEBUG: Person = " + p.getName());
+                    }
+
+//                    FamilyTreeData.setInstance(loaded); // ✅ Replace the singleton
+
+                    FamilyTreeData.getInstance().getPersons().clear();
+                    FamilyTreeData.getInstance().getPersons().addAll(loaded.getPersons());
+                    // ✅ Redraw the tree with new data
                     visualizer.drawTree(FamilyTreeData.getInstance().getPersons());
+                    System.out.println(">>> drawTree called with " + FamilyTreeData.getInstance().getPersons().size() + " persons.");
+                    importBtn.requestLayout();
                 } catch (IOException ex) {
                     ex.printStackTrace();
                 }
             }
         });
+
+        System.out.println(">>> drawTree: rendering...");
+        for (Person p : FamilyTreeData.getInstance().getPersons()) {
+            System.out.println(" - " + p.getName());
+        }
 
         primaryStage.setScene(new Scene(root, 1000, 600));
         primaryStage.show();
