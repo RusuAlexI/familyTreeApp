@@ -7,8 +7,10 @@ import javafx.scene.control.Label;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 
 import java.util.ArrayList;
@@ -116,26 +118,49 @@ public class TreeVisualizer {
         return currentX;
     }
     private VBox createPersonNode(Person person, double x, double y) {
-        VBox box = new VBox(4);
+        VBox box = new VBox();
         box.setPadding(new Insets(10));
-        box.setStyle("-fx-border-color: black; -fx-background-color: lightblue;");
-        box.setAlignment(Pos.CENTER);
-        box.setLayoutX(x);
-        box.setLayoutY(y);
-        box.setPrefWidth(150);
+        box.setSpacing(5);
+        box.setPrefWidth(140);
+        box.setStyle("""
+        -fx-background-color: white;
+        -fx-border-radius: 10;
+        -fx-background-radius: 10;
+        -fx-border-color: #444;
+        -fx-border-width: 1;
+        -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 6, 0.2, 2, 2);
+    """);
 
-        Label nameLabel = new Label("Name: " + person.getName());
+        // Optional: profile image placeholder
+        Circle profileCircle = new Circle(30, Color.LIGHTGRAY);
+        profileCircle.setStroke(Color.GRAY);
+        profileCircle.setStrokeWidth(1);
+
+        Label initials = new Label(person.getName().length() > 0 ?
+                person.getName().substring(0, 1).toUpperCase() : "?");
+        initials.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        StackPane profileStack = new StackPane(profileCircle, initials);
+        profileStack.setPadding(new Insets(5));
+        profileStack.setMaxSize(60, 60);
+
+        // Text info
+        Label nameLabel = new Label(person.getName());
+        nameLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
         Label dobLabel = new Label("Born: " + person.getDateOfBirth());
-        Label dodLabel = new Label("Died: " + (person.getDateOfDeath() != null ? person.getDateOfDeath() : "N/A"));
-        Label genderLabel = new Label("Gender: " + (person.getGender() != null ? person.getGender() : "Unknown"));
+        Label dodLabel = new Label("Died: " + person.getDateOfDeath());
+        Label genderLabel = new Label("Gender: " + person.getGender());
 
-        box.getChildren().addAll(nameLabel, dobLabel, dodLabel, genderLabel);
+        box.getChildren().addAll(profileStack, nameLabel, dobLabel, dodLabel, genderLabel);
 
-        box.setOnMouseClicked(e -> {
-            if (e.getButton() == MouseButton.PRIMARY) {
-                selectedPerson = person;
-            }
+        // Highlight on click
+        box.setOnMouseClicked((MouseEvent e) -> {
+            this.selectedPerson = person;
+            highlightSelected(box);
         });
+
+        // Hover effect
+        box.setOnMouseEntered(e -> box.setStyle(box.getStyle() + "-fx-background-color: #f0f8ff;"));
+        box.setOnMouseExited(e -> box.setStyle(box.getStyle().replace("-fx-background-color: #f0f8ff;", "-fx-background-color: white;")));
 
         return box;
     }
@@ -160,10 +185,17 @@ public class TreeVisualizer {
     }
 
     private void highlightSelected(VBox selectedBox) {
-        for (VBox box : personNodes.values()) {
-            box.setStyle("-fx-border-color: black; -fx-padding: 10; -fx-background-color: lightblue;");
-        }
-        selectedBox.setStyle("-fx-border-color: red; -fx-padding: 10; -fx-background-color: lightyellow;");
+        selectedBox.getChildren().forEach(node -> {
+            if (node instanceof VBox) {
+                ((VBox) node).setStyle(((VBox) node).getStyle()
+                        .replace("-fx-background-color: #e0f0ff;", "-fx-background-color: white;")
+                        .replace("-fx-border-color: blue;", "-fx-border-color: #444;"));
+            }
+        });
+
+        selectedBox.setStyle(selectedBox.getStyle()
+                .replace("-fx-background-color: white;", "-fx-background-color: #e0f0ff;")
+                .replace("-fx-border-color: #444;", "-fx-border-color: blue;"));
     }
     private List<Person> getChildren(Person person, List<Person> allPersons) {
         List<Person> children = new ArrayList<>();
