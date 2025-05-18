@@ -1,66 +1,168 @@
 package com.familytree;
 
 import javafx.geometry.Bounds;
-import javafx.geometry.Insets;
-import javafx.scene.Node;
+import javafx.scene.Group;
 import javafx.scene.control.Label;
-import javafx.scene.input.MouseEvent;
-import javafx.scene.layout.*;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
-import javafx.scene.text.Font;
+import javafx.scene.shape.Rectangle;
 
 import java.util.*;
 
 public class FamilyTreePane extends Pane {
 
+    private final Map<Person, StackPane> personNodeMap = new HashMap<>();
+    private final Group lineGroup = new Group();
     private Person selectedPerson;
-    private final Map<Person, VBox> personNodes = new HashMap<>();
-    private final Map<Integer, List<Person>> levelMap = new HashMap<>();
-    private final double horizontalSpacing = 180;
-    private final double verticalSpacing = 150;
 
     public FamilyTreePane() {
-        setPadding(new Insets(20));
-        setStyle("-fx-background-color: #f4f4f4;");
+        getChildren().add(lineGroup);
+    }
+
+    public Person getSelectedPerson() {
+        return selectedPerson;
     }
 
     public void drawTree(List<Person> persons) {
         getChildren().clear();
-        personNodes.clear();
-        levelMap.clear();
+        personNodeMap.clear();
+        lineGroup.getChildren().clear();
+        getChildren().add(lineGroup);
 
-        if (persons.isEmpty()) return;
+        // Layout constants
+        double horizontalSpacing = 120;
+        double verticalSpacing = 150;
+        double nodeWidth = 120;
+        double nodeHeight = 60;
 
-        assignLevels(persons);
-
-        for (List<Person> levelPersons : levelMap.values()) {
-            for (Person p : levelPersons) {
-                VBox node = createStyledPersonNode(p);
-                personNodes.put(p, node);
-                getChildren().add(node);
+        // Step 1: Find root-level persons (those with no parents)
+        List<Person> roots = new ArrayList<>();
+        for (Person person : persons) {
+            if (person.getParents().isEmpty()) {
+                roots.add(person);
             }
         }
 
-        layoutNodes();
-        drawConnections();
-    }
-
-    private void assignLevels(List<Person> persons) {
+        // Step 2: Assign levels (distance from root)
+        Map<Person, Integer> levels = new HashMap<>();
         Set<Person> visited = new HashSet<>();
-        for (Person p : persons) {
-            if (p.getParents().isEmpty()) {
-                assignLevelRecursive(p, 0, visited);
+
+        for (Person root : roots) {
+            assignLevels(root, 0, levels, visited);
+        }
+
+        // Step 3: Group persons by level
+        Map<Integer, List<Person>> levelMap = new TreeMap<>();
+        for (Map.Entry<Person, Integer> entry : levels.entrySet()) {
+            levelMap.computeIfAbsent(entry.getValue(), k -> new ArrayList<>()).add(entry.getKey());
+        }
+
+        // Step 4: Position nodes level by level
+        Map<Person, Double> xPositions = new HashMap<>();
+        double currentY = 50;
+
+        for (Map.Entry<Integer, List<Person>> entry : levelMap.entrySet()) {
+            List<Person> levelPersons = entry.getValue();
+            double currentX = 50;
+
+            for (Person person : levelPersons) {
+                StackPane node = createPersonNode(person, nodeWidth, nodeHeight);
+                personNodeMap.put(person, node);
+                getChildren().add(node);
+
+                node.setLayoutX(currentX);
+                node.setLayoutY(currentY);
+                xPositions.put(person, currentX);
+                currentX += nodeWidth + horizontalSpacing;
+            }
+
+            currentY += nodeHeight + verticalSpacing;
+        }
+
+        // Step 5: Adjust parent positioning for shared children
+        for (Person child : persons) {
+            List<Person> parents = child.getParents();
+            if (parents.size() == 2) {
+                StackPane childNode = personNodeMap.get(child);
+                StackPane parent1Node = personNodeMap.get(parents.get(0));
+                StackPane parent2Node = personNodeMap.get(parents.get(1));
+
+                if (childNode != null && parent1Node != null && parent2Node != null) {
+                    // Calculate center X of child
+                    double childCenterX = childNode.getLayoutX() + nodeWidth / 2;
+
+                    // Place parents side-by-side centered above the child
+                    double parent1X = childCenterX - nodeWidth - 10;
+                    double parent2X = childCenterX + 10;
+                    double parentY = childNode.getLayoutY() - verticalSpacing - nodeHeight;
+
+                    parent1Node.setLayoutX(parent1X);
+                    parent1Node.setLayoutY(parentY);
+
+                    parent2Node.setLayoutX(parent2X);
+                    parent2Node.setLayoutY(parentY);
+
+                    // Update xPositions for alignment downstream (optional)
+                    xPositions.put(parents.get(0), parent1X);
+                    xPositions.put(parents.get(1), parent2X);
+                }
             }
         }
+
+
+        // Step 6: Draw lines from parents to children
+        for (Person child : persons) {
+            StackPane childNode = personNodeMap.get(child);
+            if (childNode == null) continue;
+
+            Bounds childBounds = childNode.getBoundsInParent();
+            double childTopX = childBounds.getMinX() + nodeWidth / 2;
+            double childTopY = childBounds.getMinY();
+
+            List<Person> parents = child.getParents();
+            if (parents.size() == 2) {
+                StackPane parent1Node = personNodeMap.get(parents.get(0));
+                StackPane parent2Node = personNodeMap.get(parents.get(1));
+                if (parent1Node == null || parent2Node == null) continue;
+
+                Bounds b1 = parent1Node.getBoundsInParent();
+                Bounds b2 = parent2Node.getBoundsInParent();
+                double y = b1.getMaxY();
+
+                double x1 = b1.getMinX() + nodeWidth / 2;
+                double x2 = b2.getMinX() + nodeWidth / 2;
+                double midX = (x1 + x2) / 2;
+
+                // Horizontal line between parents
+                lineGroup.getChildren().add(new Line(x1, y, x2, y));
+                // Vertical line down to child
+                lineGroup.getChildren().add(new Line(midX, y, childTopX, childTopY));
+            } else {
+                for (Person parent : parents) {
+                    StackPane parentNode = personNodeMap.get(parent);
+                    if (parentNode == null) continue;
+
+                    Bounds parentBounds = parentNode.getBoundsInParent();
+                    double parentBottomX = parentBounds.getMinX() + nodeWidth / 2;
+                    double parentBottomY = parentBounds.getMinY() + nodeHeight;
+
+                    lineGroup.getChildren().add(new Line(parentBottomX, parentBottomY, childTopX, childTopY));
+                }
+            }
+        }
+
     }
 
-    private void assignLevelRecursive(Person person, int level, Set<Person> visited) {
+    private void assignLevels(Person person, int level, Map<Person, Integer> levels, Set<Person> visited) {
         if (visited.contains(person)) return;
         visited.add(person);
-        levelMap.computeIfAbsent(level, k -> new ArrayList<>()).add(person);
+
+        levels.put(person, Math.max(levels.getOrDefault(person, 0), level));
         for (Person child : getChildrenOf(person)) {
-            assignLevelRecursive(child, level + 1, visited);
+            assignLevels(child, level + 1, levels, visited);
         }
     }
 
@@ -74,141 +176,43 @@ public class FamilyTreePane extends Pane {
         return children;
     }
 
-    private void layoutNodes() {
-        for (Map.Entry<Integer, List<Person>> entry : levelMap.entrySet()) {
-            int level = entry.getKey();
-            List<Person> people = entry.getValue();
-
-            double y = level * verticalSpacing + 40;
-            double totalWidth = (people.size() - 1) * horizontalSpacing;
-            double x = (getWidth() - totalWidth) / 2;
-
-            for (Person p : people) {
-                VBox node = personNodes.get(p);
-                if (node != null) {
-                    node.setLayoutX(x);
-                    node.setLayoutY(y);
-                    x += horizontalSpacing;
-                }
-            }
-        }
-    }
-
-    private VBox createStyledPersonNode(Person person) {
-        VBox box = new VBox();
-        box.setPadding(new Insets(8));
-        box.setSpacing(4);
-        box.setPrefWidth(140);
-        box.setBackground(new Background(new BackgroundFill(Color.WHITE, new CornerRadii(10), Insets.EMPTY)));
-        box.setBorder(new Border(new BorderStroke(Color.DARKGRAY, BorderStrokeStyle.SOLID, new CornerRadii(10), new BorderWidths(1))));
-        box.setStyle("-fx-effect: dropshadow(two-pass-box, rgba(0,0,0,0.15), 5, 0, 2, 2);");
+    private StackPane createPersonNode(Person person, double width, double height) {
+        Rectangle bg = new Rectangle(width, height);
+        bg.setArcWidth(20);
+        bg.setArcHeight(20);
+        bg.setFill(Color.LIGHTBLUE);
+        bg.setStroke(Color.DARKBLUE);
+        bg.setStrokeWidth(2);
+        bg.setEffect(new javafx.scene.effect.DropShadow());
 
         Label nameLabel = new Label(person.getName());
-        nameLabel.setFont(Font.font("Arial", 14));
-        nameLabel.setStyle("-fx-font-weight: bold;");
+        nameLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: darkblue;");
 
-        Label dobLabel = new Label("Born: " + person.getDateOfBirth());
-        Label dodLabel = new Label("Died: " + person.getDateOfDeath());
-        Label genderLabel = new Label("Gender: " + person.getGender());
+        Label dobLabel = new Label(person.getDateOfBirth() == null ? "" : "b. " + person.getDateOfBirth());
+        Label dodLabel = new Label(person.getDateOfDeath() == null ? "" : "d. " + person.getDateOfDeath());
 
-        box.getChildren().addAll(nameLabel, dobLabel, dodLabel, genderLabel);
+        VBoxWithSpacing content = new VBoxWithSpacing(4, nameLabel, dobLabel, dodLabel);
 
-        box.setOnMouseClicked((MouseEvent e) -> {
+        StackPane node = new StackPane();
+        node.getChildren().addAll(bg, content);
+        node.setPrefSize(width, height);
+
+        node.setOnMouseClicked(e -> {
             selectedPerson = person;
-            highlightSelected(box);
+            System.out.println("Selected: " + person.getName());
         });
 
-        return box;
+        return node;
     }
 
-    private void highlightSelected(VBox selectedBox) {
-        for (Node node : getChildren()) {
-            if (node instanceof VBox) {
-                node.setStyle("-fx-effect: dropshadow(two-pass-box, rgba(0,0,0,0.15), 5, 0, 2, 2);");
-            }
+    // Helper VBox subclass with spacing
+    static class VBoxWithSpacing extends javafx.scene.layout.VBox {
+        public VBoxWithSpacing(double spacing, javafx.scene.Node... nodes) {
+            super(spacing, nodes);
+            setPrefSize(Region.USE_COMPUTED_SIZE, Region.USE_COMPUTED_SIZE);
+            setMaxSize(Region.USE_COMPUTED_SIZE, Region.USE_COMPUTED_SIZE);
+            setMinSize(Region.USE_COMPUTED_SIZE, Region.USE_COMPUTED_SIZE);
+            setStyle("-fx-alignment: center;");
         }
-        selectedBox.setStyle("-fx-effect: dropshadow(two-pass-box, rgba(30,144,255,0.8), 10, 0, 3, 3);");
-    }
-
-    private void drawConnections() {
-        // Draw lines between parents and children using their centered bottom and top points
-        for (Map.Entry<Person, VBox> entry : personNodes.entrySet()) {
-            Person child = entry.getKey();
-            VBox childNode = entry.getValue();
-
-            for (Person parent : child.getParents()) {
-                VBox parentNode = personNodes.get(parent);
-                if (parentNode == null) continue;
-
-                // Ensure layout is valid
-                parentNode.applyCss();
-                parentNode.layout();
-                childNode.applyCss();
-                childNode.layout();
-
-                Bounds parentBounds = parentNode.getBoundsInParent();
-                Bounds childBounds = childNode.getBoundsInParent();
-                double startY = 20;
-                List<Person> roots = new ArrayList<>();
-                for (Person p : FamilyTreeData.getInstance().getPersons()) {
-                    if (p.getParents().isEmpty()) {
-                        roots.add(p);
-                    }
-                }
-                double startX = (getWidth() - (roots.size() * horizontalSpacing)) / 2;
-                // Map to track positions
-                Map<Person, Double> xPositions = new HashMap<>();
-                Map<Person, Double> yPositions = new HashMap<>();
-
-                // Position roots
-                for (Person root : roots) {
-                    xPositions.put(root, startX);
-                    yPositions.put(root, startY);
-                    startX += horizontalSpacing;
-                }
-// Position children using BFS
-                Queue<Person> queue = new LinkedList<>(roots);
-                while (!queue.isEmpty()) {
-                    Person current = queue.poll();
-                    VBox node = personNodes.get(current);
-                    if (node != null) {
-                        node.setLayoutX(xPositions.get(current));
-                        node.setLayoutY(yPositions.get(current));
-                    }
-
-                    List<Person> children = getChildrenOf(current);
-                    if (!children.isEmpty()) {
-                        double childY = yPositions.get(current) + verticalSpacing;
-                        double totalWidth = children.size() * horizontalSpacing;
-                        double childStartX = xPositions.get(current) - (totalWidth/2) + (horizontalSpacing/2);
-
-                        for (Person child1 : children) {
-                            xPositions.put(child1, childStartX);
-                            yPositions.put(child1, childY);
-                            childStartX += horizontalSpacing;
-                            queue.add(child1);
-                        }
-                    }
-                }
-                 startX = xPositions.get(parent) + 160/2;
-                 startY = yPositions.get(parent) + 80;
-                double endX = xPositions.get(child) + 160/2;
-                double endY = yPositions.get(child);
-
-                Line line = new Line(startX, startY, endX, endY);
-                line.setStroke(Color.DARKGRAY);
-                line.setStrokeWidth(2);
-                getChildren().add(line);
-            }
-        }
-    }
-
-    public Person getSelectedPerson() {
-        return selectedPerson;
-    }
-
-    public void clearSelection() {
-        this.selectedPerson = null;
     }
 }
-//try the working FamilyTreePaneGood to add here, in order to have good looking cells like here + the working lines from there
