@@ -9,36 +9,126 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Rectangle;
-
+import javafx.scene.input.KeyCode;
+import javafx.scene.control.Button;
 import java.util.*;
 
 public class FamilyTreePane extends Pane {
 
     private final Map<Person, StackPane> personNodeMap = new HashMap<>();
     private final Group lineGroup = new Group();
+    private final Group contentGroup = new Group();  // Zoom/pan group
+
+    private double scale = 1.0;
+    private double mouseAnchorX, mouseAnchorY;
+    private double translateAnchorX, translateAnchorY;
+
     private Person selectedPerson;
 
     public FamilyTreePane() {
-        getChildren().add(lineGroup);
+        contentGroup.getChildren().add(lineGroup);
+        getChildren().add(contentGroup);
+        // Handle keyboard zoom and pan
+        setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.PLUS || e.getCode() == KeyCode.EQUALS) {
+                zoomAt(getWidth() / 2, getHeight() / 2, 1.2);
+            } else if (e.getCode() == KeyCode.MINUS) {
+                zoomAt(getWidth() / 2, getHeight() / 2, 1 / 1.2);
+            } else if (e.getCode() == KeyCode.DIGIT0) {
+                resetZoomAndPan();
+            } else if (e.getCode() == KeyCode.LEFT) {
+                contentGroup.setTranslateX(contentGroup.getTranslateX() + 20);
+            } else if (e.getCode() == KeyCode.RIGHT) {
+                contentGroup.setTranslateX(contentGroup.getTranslateX() - 20);
+            } else if (e.getCode() == KeyCode.UP) {
+                contentGroup.setTranslateY(contentGroup.getTranslateY() + 20);
+            } else if (e.getCode() == KeyCode.DOWN) {
+                contentGroup.setTranslateY(contentGroup.getTranslateY() - 20);
+            }
+        });
+
+        // Focus needed to receive key events
+        setFocusTraversable(true);
+
+        // Optional: Add reset button to UI
+        Button resetButton = new Button("Reset Zoom");
+        resetButton.setOnAction(e -> resetZoomAndPan());
+        resetButton.setLayoutX(10);
+        resetButton.setLayoutY(10);
+        getChildren().add(resetButton);
+
+        // Zoom with scroll
+        setOnScroll(e -> {
+            double delta = 1.2;
+            double oldScale = scale;
+            if (e.getDeltaY() < 0) {
+                scale /= delta;
+            } else {
+                scale *= delta;
+            }
+            scale = clamp(scale, 0.2, 5);
+            double factor = scale / oldScale;
+
+            contentGroup.setScaleX(scale);
+            contentGroup.setScaleY(scale);
+
+            double dx = e.getX() - (contentGroup.getBoundsInParent().getWidth() / 2);
+            double dy = e.getY() - (contentGroup.getBoundsInParent().getHeight() / 2);
+            contentGroup.setTranslateX(contentGroup.getTranslateX() - factor * dx + dx);
+            contentGroup.setTranslateY(contentGroup.getTranslateY() - factor * dy + dy);
+        });
+
+        // Pan with mouse drag
+        setOnMousePressed(e -> {
+            mouseAnchorX = e.getSceneX();
+            mouseAnchorY = e.getSceneY();
+            translateAnchorX = contentGroup.getTranslateX();
+            translateAnchorY = contentGroup.getTranslateY();
+        });
+
+        setOnMouseDragged(e -> {
+            contentGroup.setTranslateX(translateAnchorX + e.getSceneX() - mouseAnchorX);
+            contentGroup.setTranslateY(translateAnchorY + e.getSceneY() - mouseAnchorY);
+        });
     }
 
     public Person getSelectedPerson() {
         return selectedPerson;
     }
+    private void zoomAt(double pivotX, double pivotY, double zoomFactor) {
+        double oldScale = scale;
+        scale *= zoomFactor;
+        scale = clamp(scale, 0.2, 5);
+        double factor = scale / oldScale;
+
+        contentGroup.setScaleX(scale);
+        contentGroup.setScaleY(scale);
+
+        double dx = pivotX - (contentGroup.getBoundsInParent().getWidth() / 2);
+        double dy = pivotY - (contentGroup.getBoundsInParent().getHeight() / 2);
+        contentGroup.setTranslateX(contentGroup.getTranslateX() - factor * dx + dx);
+        contentGroup.setTranslateY(contentGroup.getTranslateY() - factor * dy + dy);
+    }
+
+    private void resetZoomAndPan() {
+        scale = 1.0;
+        contentGroup.setScaleX(scale);
+        contentGroup.setScaleY(scale);
+        contentGroup.setTranslateX(0);
+        contentGroup.setTranslateY(0);
+    }
 
     public void drawTree(List<Person> persons) {
-        getChildren().clear();
+        contentGroup.getChildren().clear();
         personNodeMap.clear();
         lineGroup.getChildren().clear();
-        getChildren().add(lineGroup);
+        contentGroup.getChildren().add(lineGroup);
 
-        // Layout constants
         double horizontalSpacing = 120;
         double verticalSpacing = 150;
         double nodeWidth = 120;
         double nodeHeight = 60;
 
-        // Step 1: Find root-level persons (those with no parents)
         List<Person> roots = new ArrayList<>();
         for (Person person : persons) {
             if (person.getParents().isEmpty()) {
@@ -46,7 +136,6 @@ public class FamilyTreePane extends Pane {
             }
         }
 
-        // Step 2: Assign levels (distance from root)
         Map<Person, Integer> levels = new HashMap<>();
         Set<Person> visited = new HashSet<>();
 
@@ -54,13 +143,11 @@ public class FamilyTreePane extends Pane {
             assignLevels(root, 0, levels, visited);
         }
 
-        // Step 3: Group persons by level
         Map<Integer, List<Person>> levelMap = new TreeMap<>();
         for (Map.Entry<Person, Integer> entry : levels.entrySet()) {
             levelMap.computeIfAbsent(entry.getValue(), k -> new ArrayList<>()).add(entry.getKey());
         }
 
-        // Step 4: Position nodes level by level
         Map<Person, Double> xPositions = new HashMap<>();
         double currentY = 50;
 
@@ -71,7 +158,7 @@ public class FamilyTreePane extends Pane {
             for (Person person : levelPersons) {
                 StackPane node = createPersonNode(person, nodeWidth, nodeHeight);
                 personNodeMap.put(person, node);
-                getChildren().add(node);
+                contentGroup.getChildren().add(node);
 
                 node.setLayoutX(currentX);
                 node.setLayoutY(currentY);
@@ -82,7 +169,6 @@ public class FamilyTreePane extends Pane {
             currentY += nodeHeight + verticalSpacing;
         }
 
-        // Step 5: Adjust parent positioning for shared children
         for (Person child : persons) {
             List<Person> parents = child.getParents();
             if (parents.size() == 2) {
@@ -91,29 +177,19 @@ public class FamilyTreePane extends Pane {
                 StackPane parent2Node = personNodeMap.get(parents.get(1));
 
                 if (childNode != null && parent1Node != null && parent2Node != null) {
-                    // Calculate center X of child
                     double childCenterX = childNode.getLayoutX() + nodeWidth / 2;
+                    double newParent1X = childCenterX - nodeWidth - 10;
+                    double newParent2X = childCenterX + 10;
 
-                    // Place parents side-by-side centered above the child
-                    double parent1X = childCenterX - nodeWidth - 10;
-                    double parent2X = childCenterX + 10;
-                    double parentY = childNode.getLayoutY() - verticalSpacing - nodeHeight;
+                    parent1Node.setLayoutX(newParent1X);
+                    parent2Node.setLayoutX(newParent2X);
 
-                    parent1Node.setLayoutX(parent1X);
-                    parent1Node.setLayoutY(parentY);
-
-                    parent2Node.setLayoutX(parent2X);
-                    parent2Node.setLayoutY(parentY);
-
-                    // Update xPositions for alignment downstream (optional)
-                    xPositions.put(parents.get(0), parent1X);
-                    xPositions.put(parents.get(1), parent2X);
+                    xPositions.put(parents.get(0), newParent1X);
+                    xPositions.put(parents.get(1), newParent2X);
                 }
             }
         }
 
-
-        // Step 6: Draw lines from parents to children
         for (Person child : persons) {
             StackPane childNode = personNodeMap.get(child);
             if (childNode == null) continue;
@@ -126,20 +202,24 @@ public class FamilyTreePane extends Pane {
             if (parents.size() == 2) {
                 StackPane parent1Node = personNodeMap.get(parents.get(0));
                 StackPane parent2Node = personNodeMap.get(parents.get(1));
-                if (parent1Node == null || parent2Node == null) continue;
+                if (parent1Node != null && parent2Node != null) {
+                    Bounds bounds1 = parent1Node.getBoundsInParent();
+                    Bounds bounds2 = parent2Node.getBoundsInParent();
+                    double y = Math.max(bounds1.getMaxY(), bounds2.getMaxY());
 
-                Bounds b1 = parent1Node.getBoundsInParent();
-                Bounds b2 = parent2Node.getBoundsInParent();
-                double y = b1.getMaxY();
+                    double x1 = bounds1.getMinX() + nodeWidth / 2;
+                    double x2 = bounds2.getMinX() + nodeWidth / 2;
 
-                double x1 = b1.getMinX() + nodeWidth / 2;
-                double x2 = b2.getMinX() + nodeWidth / 2;
-                double midX = (x1 + x2) / 2;
+                    Line hLine = new Line(x1, y, x2, y);
+                    Line vLine = new Line((x1 + x2) / 2, y, childTopX, childTopY);
 
-                // Horizontal line between parents
-                lineGroup.getChildren().add(new Line(x1, y, x2, y));
-                // Vertical line down to child
-                lineGroup.getChildren().add(new Line(midX, y, childTopX, childTopY));
+                    hLine.setStrokeWidth(2);
+                    vLine.setStrokeWidth(2);
+                    hLine.setStroke(Color.DARKSLATEGRAY);
+                    vLine.setStroke(Color.DARKSLATEGRAY);
+
+                    lineGroup.getChildren().addAll(hLine, vLine);
+                }
             } else {
                 for (Person parent : parents) {
                     StackPane parentNode = personNodeMap.get(parent);
@@ -149,11 +229,13 @@ public class FamilyTreePane extends Pane {
                     double parentBottomX = parentBounds.getMinX() + nodeWidth / 2;
                     double parentBottomY = parentBounds.getMinY() + nodeHeight;
 
-                    lineGroup.getChildren().add(new Line(parentBottomX, parentBottomY, childTopX, childTopY));
+                    Line line = new Line(parentBottomX, parentBottomY, childTopX, childTopY);
+                    line.setStrokeWidth(2);
+                    line.setStroke(Color.DARKSLATEGRAY);
+                    lineGroup.getChildren().add(line);
                 }
             }
         }
-
     }
 
     private void assignLevels(Person person, int level, Map<Person, Integer> levels, Set<Person> visited) {
@@ -203,6 +285,10 @@ public class FamilyTreePane extends Pane {
         });
 
         return node;
+    }
+
+    private double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(value, max));
     }
 
     // Helper VBox subclass with spacing
