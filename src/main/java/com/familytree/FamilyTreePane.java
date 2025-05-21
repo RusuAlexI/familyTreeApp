@@ -25,6 +25,8 @@ public class FamilyTreePane extends Pane {
 
     private Person selectedPerson;
 
+    private Theme currentTheme = Theme.DEFAULT;
+
     public FamilyTreePane() {
         contentGroup.getChildren().add(lineGroup);
         getChildren().add(contentGroup);
@@ -90,6 +92,45 @@ public class FamilyTreePane extends Pane {
             contentGroup.setTranslateX(translateAnchorX + e.getSceneX() - mouseAnchorX);
             contentGroup.setTranslateY(translateAnchorY + e.getSceneY() - mouseAnchorY);
         });
+    }
+
+    public void setTheme(Theme theme) {
+        this.currentTheme = theme;
+        applyTheme(theme.name());
+    }
+
+    public void applyTheme(String theme) {
+        switch (currentTheme) {
+            case PARCHMENT:
+                setStyle("-fx-background-image: url('/images/tree.jpg'); " +
+                        "-fx-background-size: cover;");
+                break;
+            case TREE_BACKGROUND:
+                setStyle("-fx-background-image: url('/images/tree.jpg'); " +
+                        "-fx-background-size: cover;");
+                break;
+            default:
+                setStyle("-fx-background-color: white;");
+                break;
+        }
+
+        // Optionally, update node styles if needed (e.g. different border colors)
+        for (StackPane node : personNodeMap.values()) {
+            Rectangle rect = (Rectangle) node.getChildren().get(0);
+            switch (currentTheme) {
+                case PARCHMENT:
+                    rect.setFill(Color.BEIGE);
+                    rect.setStroke(Color.SADDLEBROWN);
+                    break;
+                case TREE_BACKGROUND:
+                    rect.setFill(Color.LIGHTGREEN);
+                    rect.setStroke(Color.DARKGREEN);
+                    break;
+                default:
+                    rect.setFill(Color.LIGHTBLUE);
+                    rect.setStroke(Color.DARKBLUE);
+            }
+        }
     }
 
     public Person getSelectedPerson() {

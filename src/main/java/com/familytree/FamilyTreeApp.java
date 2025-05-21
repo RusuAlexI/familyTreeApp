@@ -6,6 +6,7 @@ import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.StackPane;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
@@ -16,19 +17,21 @@ import java.util.Optional;
 public class FamilyTreeApp extends Application {
 
     private final FamilyTreeData data = FamilyTreeData.getInstance();
-//    private final TreeVisualizer visualizer = new TreeVisualizer();
-private final FamilyTreePane visualizer = new FamilyTreePane();
+    private final FamilyTreePane visualizer = new FamilyTreePane();
+
     @Override
     public void start(Stage primaryStage) {
         primaryStage.setTitle("Family Tree Application");
 
         BorderPane root = new BorderPane();
-//        root.setCenter(visualizer.getView());
+
         ScrollPane scrollPane = new ScrollPane(visualizer);
         scrollPane.setFitToWidth(true);
         scrollPane.setFitToHeight(true);
-        root.setCenter(scrollPane);
-        visualizer.setPrefSize(2000, 1000); // Large enough for testing layout
+
+        StackPane stack = new StackPane(scrollPane);
+        root.setCenter(stack);
+        visualizer.setPrefSize(2000, 1000);
 
         // Top menu bar
         ToolBar toolBar = new ToolBar();
@@ -40,7 +43,13 @@ private final FamilyTreePane visualizer = new FamilyTreePane();
         Button exportBtn = new Button("Export");
         Button importBtn = new Button("Import");
 
-        toolBar.getItems().addAll(addButton, editButton, deleteButton, addRelationButton,exportBtn,importBtn);
+        // Theme selector
+        ComboBox<String> themeSelector = new ComboBox<>();
+        themeSelector.getItems().addAll("Default", "Parchment", "Tree");
+        themeSelector.setValue("Default");
+        themeSelector.setOnAction(e -> visualizer.applyTheme(themeSelector.getValue()));
+
+        toolBar.getItems().addAll(addButton, editButton, deleteButton, addRelationButton, exportBtn, importBtn, new Label(" Theme:"), themeSelector);
         root.setTop(toolBar);
 
         addButton.setOnAction(e -> {
@@ -48,7 +57,7 @@ private final FamilyTreePane visualizer = new FamilyTreePane();
             Optional<Person> result = dialog.showAndWait();
             result.ifPresent(person -> {
                 data.addPerson(person);
-                visualizer.drawTree(FamilyTreeData.getInstance().getPersons());
+                visualizer.drawTree(data.getPersons());
             });
         });
 
@@ -65,7 +74,7 @@ private final FamilyTreePane visualizer = new FamilyTreePane();
                 selected.setDateOfBirth(updated.getDateOfBirth());
                 selected.setDateOfDeath(updated.getDateOfDeath());
                 selected.setGender(updated.getGender());
-                visualizer.drawTree(FamilyTreeData.getInstance().getPersons());
+                visualizer.drawTree(data.getPersons());
             });
         });
 
@@ -76,7 +85,7 @@ private final FamilyTreePane visualizer = new FamilyTreePane();
                 return;
             }
             data.removePerson(selected);
-            visualizer.drawTree(FamilyTreeData.getInstance().getPersons());
+            visualizer.drawTree(data.getPersons());
         });
 
         addRelationButton.setOnAction(e -> {
@@ -87,7 +96,7 @@ private final FamilyTreePane visualizer = new FamilyTreePane();
             }
 
             ChoiceDialog<Person> childDialog = new ChoiceDialog<>();
-            childDialog.getItems().addAll(FamilyTreeData.getInstance().getPersons());
+            childDialog.getItems().addAll(data.getPersons());
             childDialog.setTitle("Select Child");
             childDialog.setHeaderText("Choose the child to link to " + parent.getName());
             childDialog.setContentText("Child:");
@@ -95,15 +104,11 @@ private final FamilyTreePane visualizer = new FamilyTreePane();
             Optional<Person> childOpt = childDialog.showAndWait();
             childOpt.ifPresent(child -> {
                 child.addParent(parent);
-                visualizer.drawTree(FamilyTreeData.getInstance().getPersons());
+                visualizer.drawTree(data.getPersons());
             });
         });
 
         exportBtn.setOnAction(e -> {
-            System.out.println("Exporting persons:");
-            for (Person p : FamilyTreeData.getInstance().getPersons()) {
-                System.out.println(p.getName()); // or a toString() implementation
-            }
             FileChooser fileChooser = new FileChooser();
             fileChooser.setTitle("Export Family Tree");
             fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
@@ -112,8 +117,7 @@ private final FamilyTreePane visualizer = new FamilyTreePane();
                 try {
                     ObjectMapper mapper = new ObjectMapper();
                     mapper.enable(SerializationFeature.INDENT_OUTPUT);
-                    mapper.writeValue(file, FamilyTreeData.getInstance());
-                    System.out.println("Export successful.");
+                    mapper.writeValue(file, data);
                 } catch (IOException ex) {
                     ex.printStackTrace();
                 }
@@ -131,31 +135,15 @@ private final FamilyTreePane visualizer = new FamilyTreePane();
                     ObjectMapper mapper = new ObjectMapper();
                     FamilyTreeData loaded = mapper.readValue(selectedFile, FamilyTreeData.class);
 
-                    System.out.println(">>> DEBUG direct load: " + loaded);
-                    System.out.println(">>> DEBUG person count: " + loaded.getPersons().size());
+                    data.getPersons().clear();
+                    data.getPersons().addAll(loaded.getPersons());
 
-                    for (Person p : loaded.getPersons()) {
-                        System.out.println("DEBUG: Person = " + p.getName());
-                    }
-
-//                    FamilyTreeData.setInstance(loaded); // ✅ Replace the singleton
-
-                    FamilyTreeData.getInstance().getPersons().clear();
-                    FamilyTreeData.getInstance().getPersons().addAll(loaded.getPersons());
-                    // ✅ Redraw the tree with new data
-                    visualizer.drawTree(FamilyTreeData.getInstance().getPersons());
-                    System.out.println(">>> drawTree called with " + FamilyTreeData.getInstance().getPersons().size() + " persons.");
-                    importBtn.requestLayout();
+                    visualizer.drawTree(data.getPersons());
                 } catch (IOException ex) {
                     ex.printStackTrace();
                 }
             }
         });
-
-        System.out.println(">>> drawTree: rendering...");
-        for (Person p : FamilyTreeData.getInstance().getPersons()) {
-            System.out.println(" - " + p.getName());
-        }
 
         primaryStage.setScene(new Scene(root, 1000, 600));
         primaryStage.show();
@@ -167,18 +155,6 @@ private final FamilyTreePane visualizer = new FamilyTreePane();
         alert.setContentText(msg);
         alert.showAndWait();
     }
-
-    public static void debugLoadTest(File file) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            FamilyTreeData loaded = mapper.readValue(file, FamilyTreeData.class);
-            System.out.println(">>> DEBUG direct load: " + loaded);
-            System.out.println(">>> DEBUG person count: " + (loaded.getPersons() == null ? "null" : loaded.getPersons().size()));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
 
     public static void main(String[] args) {
         launch(args);
