@@ -47,7 +47,14 @@ public class FamilyTreeApp extends Application {
         ComboBox<String> themeSelector = new ComboBox<>();
         themeSelector.getItems().addAll("Default", "Parchment", "Tree");
         themeSelector.setValue("Default");
-        themeSelector.setOnAction(e -> visualizer.applyTheme(themeSelector.getValue()));
+        themeSelector.setOnAction(e -> {
+            String selected = themeSelector.getValue();
+            switch (selected) {
+                case "Parchment" -> visualizer.setTheme(Theme.PARCHMENT);
+                case "Tree" -> visualizer.setTheme(Theme.TREE_BACKGROUND);
+                default -> visualizer.setTheme(Theme.DEFAULT);
+            }
+        });
 
         toolBar.getItems().addAll(addButton, editButton, deleteButton, addRelationButton, exportBtn, importBtn, new Label(" Theme:"), themeSelector);
         root.setTop(toolBar);
