@@ -130,6 +130,15 @@
             }
         }
 
+        public void setCustomBackground(String imageUrl) {
+            BackgroundImage bgImage = new BackgroundImage(
+                    new Image(imageUrl, true),
+                    BackgroundRepeat.NO_REPEAT, BackgroundRepeat.NO_REPEAT,
+                    BackgroundPosition.CENTER,
+                    new BackgroundSize(BackgroundSize.AUTO, BackgroundSize.AUTO, false, false, true, true)
+            );
+            setBackground(new Background(bgImage));
+        }
 
         private void setNodeStyle(String style) {
             for (StackPane box : personNodeMap.values()) {

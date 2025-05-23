@@ -3,21 +3,28 @@ package com.familytree;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import javafx.application.Application;
+import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.StackPane;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Optional;
+import java.util.prefs.Preferences;
 
 public class FamilyTreeApp extends Application {
 
     private final FamilyTreeData data = FamilyTreeData.getInstance();
     private final FamilyTreePane visualizer = new FamilyTreePane();
+
+    private static final Preferences prefs = Preferences.userNodeForPackage(FamilyTreeApp.class);
+    private static final String THEME_KEY = "selectedTheme";
 
     @Override
     public void start(Stage primaryStage) {
@@ -43,16 +50,54 @@ public class FamilyTreeApp extends Application {
         Button exportBtn = new Button("Export");
         Button importBtn = new Button("Import");
 
-        // Theme selector
-        ComboBox<String> themeSelector = new ComboBox<>();
-        themeSelector.getItems().addAll("Default", "Parchment", "Tree");
-        themeSelector.setValue("Default");
+        // Theme selector with icons
+        ComboBox<ThemeItem> themeSelector = new ComboBox<>();
+        themeSelector.setButtonCell(createThemeCell());
+        themeSelector.setCellFactory(list -> createThemeCell());
+
+        themeSelector.getItems().addAll(
+                new ThemeItem("Default", Theme.DEFAULT, new Image(getClass().getResourceAsStream("/icons/default.jpg"))),
+                new ThemeItem("Parchment", Theme.PARCHMENT, new Image(getClass().getResourceAsStream("/icons/parchment.jpg"))),
+                new ThemeItem("Tree", Theme.TREE_BACKGROUND, new Image(getClass().getResourceAsStream("/icons/tree.jpg"))),
+                new ThemeItem("Custom...", null, new Image(getClass().getResourceAsStream("/icons/custom.jpg")))
+        );
+
+        // Restore saved theme
+        String savedTheme = prefs.get(THEME_KEY, "Default");
+        themeSelector.getItems().stream()
+                .filter(item -> item.name().equals(savedTheme))
+                .findFirst()
+                .ifPresent(themeSelector::setValue);
+
+        applyTheme(themeSelector.getValue(), visualizer);
+
         themeSelector.setOnAction(e -> {
-            String selected = themeSelector.getValue();
-            switch (selected) {
-                case "Parchment" -> visualizer.setTheme(Theme.PARCHMENT);
-                case "Tree" -> visualizer.setTheme(Theme.TREE_BACKGROUND);
-                default -> visualizer.setTheme(Theme.DEFAULT);
+            ThemeItem selectedItem = themeSelector.getValue();
+            if (selectedItem.name().equals("Custom...")) {
+                FileChooser fileChooser = new FileChooser();
+                fileChooser.setTitle("Choose Custom Background Image");
+                fileChooser.getExtensionFilters().add(
+                        new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg")
+                );
+                File file = fileChooser.showOpenDialog(primaryStage);
+                if (file != null) {
+                    try (FileInputStream fis = new FileInputStream(file)) {
+                        Image customImage = new Image(fis);
+//                        Theme customTheme = new Theme("Custom", customImage, true);
+                        visualizer.setTheme(Theme.DEFAULT);
+                        prefs.put(THEME_KEY, "Custom"); // Save that custom was chosen
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                } else {
+                    // If canceled, revert to previous selection
+                    themeSelector.setValue(themeSelector.getItems().stream()
+                            .filter(item -> item.name().equals(savedTheme))
+                            .findFirst().orElse(themeSelector.getItems().get(0)));
+                }
+            } else {
+                applyTheme(selectedItem, visualizer);
+                prefs.put(THEME_KEY, selectedItem.name());
             }
         });
 
@@ -154,6 +199,32 @@ public class FamilyTreeApp extends Application {
 
         primaryStage.setScene(new Scene(root, 1000, 600));
         primaryStage.show();
+    }
+
+    private void applyTheme(ThemeItem item, FamilyTreePane pane) {
+        if (item != null && item.theme() != null) {
+            pane.setTheme(item.theme());
+        }
+    }
+
+    private ListCell<ThemeItem> createThemeCell() {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(ThemeItem item, boolean empty) {
+                super.updateItem(item, empty);
+                if (item == null || empty) {
+                    setGraphic(null);
+                    setText(null);
+                } else {
+                    ImageView imageView = new ImageView(item.icon());
+                    imageView.setFitWidth(24);
+                    imageView.setFitHeight(24);
+                    setGraphic(imageView);
+                    setText(item.name());
+                    setPadding(new Insets(4));
+                }
+            }
+        };
     }
 
     private void showAlert(String msg) {
