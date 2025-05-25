@@ -428,10 +428,10 @@
             bg.setFill(Color.LIGHTBLUE);
             bg.setStroke(Color.DARKBLUE);
             bg.setStrokeWidth(2);
-            bg.setEffect(new javafx.scene.effect.DropShadow());
+            bg.setEffect(new javafx.scene.effect.DropShadow(5, Color.GRAY));
 
             Label nameLabel = new Label(person.getName());
-            nameLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: darkblue;");
+            nameLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
 
             Label dobLabel = new Label(person.getDateOfBirth() == null ? "" : "b. " + person.getDateOfBirth());
             Label dodLabel = new Label(person.getDateOfDeath() == null ? "" : "d. " + person.getDateOfDeath());

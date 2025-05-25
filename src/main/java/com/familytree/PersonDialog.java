@@ -7,6 +7,10 @@ import javafx.scene.layout.GridPane;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.stage.FileChooser;
+import java.io.File;
 import javafx.util.Callback;
 
 import java.time.LocalDate;
@@ -40,9 +44,36 @@ public class PersonDialog extends Dialog<Person> {
         grid.add(new Label("Gender:"), 0, 3);
         grid.add(genderField, 1, 3);
 
+        ImageView photoPreview = new ImageView();
+        photoPreview.setFitWidth(80);
+        photoPreview.setFitHeight(80);
+        photoPreview.setPreserveRatio(true);
+
+        Button uploadImageBtn = new Button("Upload Photo");
+        uploadImageBtn.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Select Profile Image");
+            fileChooser.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.gif")
+            );
+            File selectedFile = fileChooser.showOpenDialog(getDialogPane().getScene().getWindow());
+            if (selectedFile != null) {
+                Image img = new Image(selectedFile.toURI().toString());
+                photoPreview.setImage(img);
+            }
+        });
+
+        // Add to your layout grid or container:
+        grid.add(new Label("Photo:"), 0, 5);
+        grid.add(photoPreview, 1, 5);
+        grid.add(uploadImageBtn, 2, 5);
+
         getDialogPane().setContent(grid);
 
         if (existingPerson != null) {
+            if (existingPerson.getPhotoAsImage() != null) {
+                photoPreview.setImage(existingPerson.getPhotoAsImage());
+            }
             nameField.setText(existingPerson.getName());
             if (existingPerson.getDateOfBirth() != null) {
                 dobPicker.setValue(LocalDate.parse(existingPerson.getDateOfBirth()));
@@ -51,32 +82,33 @@ public class PersonDialog extends Dialog<Person> {
             genderField.setValue(existingPerson.getGender());
         }
 
-        setResultConverter(new Callback<ButtonType, Person>() {
-            @Override
-            public Person call(ButtonType dialogButton) {
-                if (dialogButton == saveButtonType) {
-                    String name = nameField.getText().trim();
-                    LocalDate dob = dobPicker.getValue();
-                    String gender = genderField.getValue();
-                    LocalDate dod = dodPicker.getValue(); // may be null
+        setResultConverter(dialogButton -> {
+            if (dialogButton == saveButtonType) {
+                String name = nameField.getText().trim();
+                LocalDate dob = dobPicker.getValue();
+                String gender = genderField.getValue();
+                LocalDate dod = dodPicker.getValue();
 
-                    if (name.isEmpty() || dob == null || gender == null) {
-                        Alert alert = new Alert(Alert.AlertType.ERROR);
-                        alert.setHeaderText("Missing or invalid fields");
-                        alert.setContentText("Please fill in all required fields.");
-                        alert.showAndWait();
-                        return null;
-                    }
-
-                    Person person = new Person();
-                    person.setName(name);
-                    person.setDateOfBirth(dob.toString());
-                    person.setDateOfDeath(dod != null ? dod.toString() : null);
-                    person.setGender(gender);
-                    return person;
+                if (name.isEmpty() || dob == null || gender == null) {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setHeaderText("Missing or invalid fields");
+                    alert.setContentText("Please fill in all required fields.");
+                    alert.showAndWait();
+                    return null;
                 }
-                return null;
+
+                Person person = existingPerson != null ? existingPerson : new Person();
+                person.setName(name);
+                person.setDateOfBirth(dob.toString());
+                person.setDateOfDeath(dod != null ? dod.toString() : null);
+                person.setGender(gender);
+                person.setPhotoFromImage(photoPreview.getImage());
+
+                return person;
             }
+            return null;
         });
+
+
     }
 }

@@ -185,7 +185,10 @@ public class FamilyTreeApp extends Application {
             if (selectedFile != null) {
                 try {
                     ObjectMapper mapper = new ObjectMapper();
-                    FamilyTreeData loaded = mapper.readValue(selectedFile, FamilyTreeData.class);
+                    FamilyTreeDataDTO loadedDto = mapper.readValue(selectedFile, FamilyTreeDataDTO.class);
+
+                    // Convert back to domain objects
+                    FamilyTreeData loaded = loadedDto.toDomain();
 
                     data.getPersons().clear();
                     data.getPersons().addAll(loaded.getPersons());
