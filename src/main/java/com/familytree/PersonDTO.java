@@ -1,9 +1,10 @@
 package com.familytree;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.util.ArrayList;
 import java.util.List;
-
+import java.util.stream.Collectors;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PersonDTO {
     private String id;
@@ -12,12 +13,17 @@ public class PersonDTO {
     private String dateOfDeath;
     private String gender;
     private List<String> parentIds = new ArrayList<>();
-    private String photoPath; // Store path/URL instead of Image
+    private List<String> childrenIds = new ArrayList<>();
 
-    // Default constructor for Jackson
+    private String photoPath;
+    private String placeOfBirth;
+    private String occupation;
+    private String notes;
+
+    // Default constructor
     public PersonDTO() {}
 
-    // Conversion from domain Person to DTO
+    // From domain
     public static PersonDTO fromDomain(Person person) {
         PersonDTO dto = new PersonDTO();
         dto.setId(person.getId());
@@ -25,29 +31,32 @@ public class PersonDTO {
         dto.setDateOfBirth(person.getDateOfBirth());
         dto.setDateOfDeath(person.getDateOfDeath());
         dto.setGender(person.getGender());
-
+        dto.setPhotoPath(person.getPhotoPath());
+        dto.setPlaceOfBirth(person.getPlaceOfBirth());
+        dto.setOccupation(person.getOccupation());
+        dto.setNotes(person.getNotes());
+        dto.setChildrenIds(person.getChildren().stream()
+                .map(Person::getId)
+                .collect(Collectors.toList()));
         for (Person parent : person.getParents()) {
             dto.getParentIds().add(parent.getId());
         }
 
-        // Optionally include photo path
-        // dto.setPhotoPath(person.getPhotoPath());
-
         return dto;
     }
 
-    // Conversion back to domain Person
+    // To domain
     public Person toDomain() {
         Person person = new Person();
-        person.setId(this.getId());
-        person.setName(this.getName());
-        person.setDateOfBirth(this.getDateOfBirth());
-        person.setDateOfDeath(this.getDateOfDeath());
-        person.setGender(this.getGender());
-
-        // Optionally load photo
-        // person.setPhotoPath(this.getPhotoPath());
-
+        person.setId(this.id);
+        person.setName(this.name);
+        person.setDateOfBirth(this.dateOfBirth);
+        person.setDateOfDeath(this.dateOfDeath);
+        person.setGender(this.gender);
+        person.setPhotoPath(this.photoPath);
+        person.setPlaceOfBirth(this.placeOfBirth);
+        person.setOccupation(this.occupation);
+        person.setNotes(this.notes);
         return person;
     }
 
@@ -63,7 +72,15 @@ public class PersonDTO {
     public String getGender() { return gender; }
     public void setGender(String gender) { this.gender = gender; }
     public List<String> getParentIds() { return parentIds; }
+    public List<String> getChildrenIds() { return childrenIds; }
+    public void setChildrenIds(List<String> childrenIds) { this.childrenIds = childrenIds; }
     public void setParentIds(List<String> parentIds) { this.parentIds = parentIds; }
     public String getPhotoPath() { return photoPath; }
     public void setPhotoPath(String photoPath) { this.photoPath = photoPath; }
+    public String getPlaceOfBirth() { return placeOfBirth; }
+    public void setPlaceOfBirth(String placeOfBirth) { this.placeOfBirth = placeOfBirth; }
+    public String getOccupation() { return occupation; }
+    public void setOccupation(String occupation) { this.occupation = occupation; }
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
 }
