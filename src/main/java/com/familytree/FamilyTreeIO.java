@@ -51,8 +51,8 @@ public class FamilyTreeIO {
         String json = new String(Files.readAllBytes(file.toPath()));
         System.out.println("DEBUG raw JSON: " + json);
         FamilyTreeData loaded = mapper.readValue(file, FamilyTreeData.class);
-        System.out.println("DEBUG: loaded.getPersons().size() = " + loaded.getPersons().size());
-        for (Person p : loaded.getPersons()) {
+        System.out.println("DEBUG: loaded.getPersons().size() = " + loaded.getAllPeople().size());
+        for (Person p : loaded.getAllPeople()) {
             System.out.println("DEBUG: Person = " + p.getName());
         }
         return loaded;

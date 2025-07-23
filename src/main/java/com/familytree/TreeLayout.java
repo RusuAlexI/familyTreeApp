@@ -5,22 +5,24 @@ import java.util.List;
 import java.util.Map;
 
 public class TreeLayout {
-    private Map<String, Position> layoutMap = new HashMap<>();
+    private final Map<String, Position> layoutMap = new HashMap<>();
 
     public Map<String, Position> layout(List<Person> persons, List<Relationship> relationships) {
         layoutMap.clear();
 
-        int x = 50;
-        int y = 50;
-        int verticalSpacing = 150;
-        int horizontalSpacing = 200;
+        int horizontalSpacing = 250;
+        int verticalSpacing = 200;
+        int x = 100;
+        int y = 100;
 
         for (int i = 0; i < persons.size(); i++) {
-            Person p = persons.get(i);
-            layoutMap.put(p.getName(), new Position(x, y, p.getName()));
+            Person person = persons.get(i);
+            layoutMap.put(person.getId(), new Position(x, y, person.getId()));
             x += horizontalSpacing;
-            if (x > 800) {
-                x = 50;
+
+            // Wrap to new row if needed
+            if (x > 1200) {
+                x = 100;
                 y += verticalSpacing;
             }
         }
