@@ -11,6 +11,10 @@ import javafx.stage.Stage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import javafx.scene.control.Separator;
+import javafx.scene.control.ChoiceBox;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.scene.control.Label;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,7 +37,42 @@ public class FamilyTreeApp extends Application {
         Button loadButton = new Button("Load Tree");
         Button saveButton = new Button("Save Tree");
         Button exportImageButton = new Button("Export Image");
-        Button setBackgroundButton = new Button("Set Background");
+
+        // --- Theme Selector ---
+        ChoiceBox<ThemeItem> themeSelector = new ChoiceBox<>();
+        ObservableList<ThemeItem> themeOptions = FXCollections.observableArrayList(ThemeLoader.loadThemes());
+
+        // Add the "Upload Custom Image" option
+        ThemeItem uploadCustomItem = new ThemeItem("Upload Custom Image...", Theme.CUSTOM, null);
+        themeOptions.add(uploadCustomItem);
+
+        themeSelector.setItems(themeOptions);
+
+        // Set initial theme to DEFAULT and select it in the dropdown
+        // Find the ThemeItem corresponding to Theme.DEFAULT
+        ThemeItem defaultThemeItem = themeOptions.stream()
+                .filter(item -> item.getTheme() == Theme.DEFAULT)
+                .findFirst()
+                .orElse(null);
+
+        if (defaultThemeItem != null) {
+            themeSelector.getSelectionModel().select(defaultThemeItem); // CORRECTED: Select ThemeItem
+        }
+        treePane.setTheme(Theme.DEFAULT); // Apply default theme on startup
+
+        // Listener for theme selection changes
+        themeSelector.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                if (newVal.getTheme() == Theme.CUSTOM) { // This call will now work
+                    // This is the "Upload Custom Image" option
+                    setCustomBackgroundImage(primaryStage);
+                } else {
+                    // A predefined theme (DEFAULT, TREE, PARCHMENT) was selected
+                    treePane.setTheme(newVal.getTheme()); // This call will now work
+                }
+            }
+        });
+        // --- End Theme Selector ---
 
         addButton.setOnAction(e -> {
             treePane.getVisualizer().addPerson(null);
@@ -44,13 +83,15 @@ public class FamilyTreeApp extends Application {
         loadButton.setOnAction(e -> loadFamilyTree(primaryStage));
         saveButton.setOnAction(e -> saveFamilyTree(primaryStage));
         exportImageButton.setOnAction(e -> treePane.exportAsImage(primaryStage));
-        setBackgroundButton.setOnAction(e -> setCustomBackgroundImage(primaryStage)); // Renamed method for clarity
 
         ToolBar toolbar = new ToolBar();
         toolbar.getItems().addAll(
                 addButton, editButton, deleteButton,
                 new Separator(),
-                loadButton, saveButton, exportImageButton, setBackgroundButton
+                loadButton, saveButton, exportImageButton,
+                new Separator(),
+                new Label("Theme:"),
+                themeSelector
         );
 
         root.setTop(toolbar);
@@ -64,13 +105,12 @@ public class FamilyTreeApp extends Application {
 
         if (data.getAllPeople().isEmpty()) {
             Person initialPerson = new Person("New Root Person");
-            // Set initial position to a default value, as scene dimensions might not be fully available yet
             initialPerson.setX(800 - 50);
             initialPerson.setY(500 - 100);
             data.addPerson(initialPerson);
         }
 
-        treePane.getVisualizer().refresh(); // CORRECTED: Call refresh on TreeVisualizer
+        treePane.getVisualizer().refresh();
     }
 
     private void loadFamilyTree(Stage stage) {
@@ -86,7 +126,7 @@ public class FamilyTreeApp extends Application {
             try {
                 FamilyTreeData loadedData = objectMapper.readValue(file, FamilyTreeData.class);
                 FamilyTreeData.setInstance(loadedData);
-                treePane.getVisualizer().refresh(); // CORRECTED: Call refresh on TreeVisualizer
+                treePane.getVisualizer().refresh();
                 showAlert(Alert.AlertType.INFORMATION, "Load Successful", "Family tree loaded from " + file.getName());
             } catch (IOException e) {
                 e.printStackTrace();
@@ -116,7 +156,6 @@ public class FamilyTreeApp extends Application {
         }
     }
 
-    // CORRECTED METHOD: setCustomBackgroundImage
     private void setCustomBackgroundImage(Stage stage) {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Select Background Image");
@@ -128,11 +167,8 @@ public class FamilyTreeApp extends Application {
 
         if (file != null) {
             try {
-                // Get the CUSTOM theme instance
                 Theme customTheme = Theme.CUSTOM;
-                // Set the custom background file for the CUSTOM theme
                 customTheme.setCustomBackground(file);
-                // Apply the CUSTOM theme to the treePane
                 treePane.setTheme(customTheme);
 
                 showAlert(Alert.AlertType.INFORMATION, "Background Set", "Background image updated successfully.");
