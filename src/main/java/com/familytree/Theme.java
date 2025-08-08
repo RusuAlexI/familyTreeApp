@@ -6,9 +6,9 @@ import java.io.File;
 import java.util.Objects;
 
 public enum Theme {
-    DEFAULT("images/Genealogical_Family_Tree_on_Aged_Paper.png", "icons/default.jpg", "Default"),
-    TREE("images/tree.jpg", "icons/default.jpg", "Tree Style"),
-    PARCHMENT("images/parchment.jpg", "icons/parchment.jpg", "Parchment"),
+    DEFAULT("imagess/Genealogical_Family_Tree_on_Aged_Paper.png", "icons/default.jpg", "Default"),
+    TREE("imagess/tree.jpg", "icons/default.jpg", "Tree Style"),
+    PARCHMENT("imagess/parchment.jpg", "icons/parchment.jpg", "Parchment"),
     CUSTOM(null, null, "Custom");
 
     private final String backgroundPath;

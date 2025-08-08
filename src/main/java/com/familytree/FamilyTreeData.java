@@ -1,196 +1,192 @@
 package com.familytree;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty; // Import JsonProperty
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 
+import java.io.*;
 import java.util.*;
-import java.util.stream.Collectors;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class FamilyTreeData {
+    private static final String FILE_NAME = "family_tree.dat";
+    private static FamilyTreeData instance;
 
-    private static FamilyTreeData instance = new FamilyTreeData(); // Singleton instance
+    private final Map<String, Person> people;
+    private final Map<String, Position> layoutPositions;
 
-    @JsonProperty("allPeople") // <-- ADD THIS ANNOTATION
-    private List<Person> persons = new ArrayList<>();
-    // A map for quick lookup of persons by ID
-    private transient Map<String, Person> personMap = new HashMap<>();
+    private final ObservableList<Person> personList;
 
-    // Required for Jackson for deserialization
-    public FamilyTreeData() {
-        // Initialize map from persons list upon creation/deserialization
-        initializePersonMap();
+    private FamilyTreeData() {
+        this.people = new HashMap<>();
+        this.layoutPositions = new HashMap<>();
+        this.personList = FXCollections.observableArrayList();
+        loadData();
     }
 
-    public FamilyTreeData(List<Person> persons) {
-        this.persons = persons;
-        initializePersonMap();
-    }
-
-    // Singleton getter
     public static FamilyTreeData getInstance() {
+        if (instance == null) {
+            instance = new FamilyTreeData();
+        }
         return instance;
     }
 
-    // Setter for replacing instance (e.g., on import/load)
-    public static void setInstance(FamilyTreeData newData) {
-        if (newData != null && newData.getAllPeople() != null) {
-            System.out.println(">>> DEBUG: Replacing singleton with " + newData.getAllPeople().size() + " persons.");
-            instance = newData;
-            instance.initializePersonMap(); // Re-initialize map for new instance
-        } else {
-            System.out.println(">>> WARNING: Attempted to set null or empty FamilyTreeData instance.");
-        }
-    }
-
-    // Initialize/Re-initialize the personMap from the persons list
-    private void initializePersonMap() {
-        personMap = new HashMap<>();
-        for (Person person : persons) {
-            personMap.put(person.getId(), person);
-        }
+    // Getters
+    public ObservableList<Person> getPersonList() {
+        return personList;
     }
 
     public List<Person> getAllPeople() {
-        return new ArrayList<>(persons); // Return a copy to prevent external modification
+        return new ArrayList<>(people.values());
     }
 
-    public void setPersons(List<Person> persons) {
-        this.persons = persons;
-        initializePersonMap(); // Update map when persons list is set
+    public Person getPerson(String id) {
+        return people.get(id);
     }
 
+    public Position getLayoutPosition(String personId) {
+        return layoutPositions.get(personId);
+    }
+
+    public List<Person> getSpouses(Person person) {
+        List<Person> spouses = new ArrayList<>();
+        for (String spouseId : person.getSpouseIds()) {
+            spouses.add(getPerson(spouseId));
+        }
+        return spouses;
+    }
+
+    public List<Person> getChildren(Person person) {
+        List<Person> children = new ArrayList<>();
+        for (String childId : person.getChildIds()) {
+            children.add(getPerson(childId));
+        }
+        return children;
+    }
+
+    // Setters / Modifiers
     public void addPerson(Person person) {
-        if (person.getId() == null || person.getId().isEmpty()) {
-            person.setId(UUID.randomUUID().toString()); // Ensure ID is set if not already
-        }
-        persons.add(person);
-        personMap.put(person.getId(), person); // Add to map
+        people.put(person.getId(), person);
+        personList.add(person);
     }
 
-    /**
-     * Removes a person by their ID and updates all related relationships.
-     * @param personId The ID of the person to remove.
-     */
-    public void removePerson(String personId) {
-        Person personToRemove = personMap.get(personId);
-        if (personToRemove == null) return;
-
-        // Remove from main list
-        persons.remove(personToRemove);
-        // Remove from map
-        personMap.remove(personId);
-
-        // Update relationships of other persons
-        for (Person p : persons) {
-            // Remove as a child
-            p.getChildrenIds().remove(personId);
-
-            // Remove as a spouse
-            p.getSpouseIds().remove(personId);
-
-            // If removed person was a mother or father, clear their parent ID
-            if (Objects.equals(p.getMotherId(), personId)) {
-                p.setMotherId(null);
+    public void removePerson(String id) {
+        Person person = people.remove(id);
+        if (person != null) {
+            // Remove from other peoples' relationships
+            if (person.getFatherId() != null) {
+                getPerson(person.getFatherId()).removeChildId(id);
             }
-            if (Objects.equals(p.getFatherId(), personId)) {
-                p.setFatherId(null);
+            if (person.getMotherId() != null) {
+                getPerson(person.getMotherId()).removeChildId(id);
+            }
+            for (String spouseId : person.getSpouseIds()) {
+                getPerson(spouseId).removeSpouseId(id);
+            }
+            for (String childId : person.getChildIds()) {
+                Person child = getPerson(childId);
+                if (child != null) {
+                    child.setFatherId(null);
+                    child.setMotherId(null);
+                }
+            }
+            personList.remove(person);
+        }
+    }
+
+    public void setLayoutPosition(String personId, Position position) {
+        layoutPositions.put(personId, position);
+    }
+
+    public void clearData() {
+        people.clear();
+        layoutPositions.clear();
+        personList.clear();
+    }
+
+    public void linkAllRelationships() {
+        // This method ensures relationships are consistent in both directions
+        for (Person person : people.values()) {
+            // Link to father
+            if (person.getFatherId() != null) {
+                Person father = people.get(person.getFatherId());
+                if (father != null) {
+                    father.addChildId(person.getId());
+                }
+            }
+            // Link to mother
+            if (person.getMotherId() != null) {
+                Person mother = people.get(person.getMotherId());
+                if (mother != null) {
+                    mother.addChildId(person.getId());
+                }
+            }
+
+            // Link spouses
+            for (String spouseId : person.getSpouseIds()) {
+                Person spouse = people.get(spouseId);
+                if (spouse != null) {
+                    spouse.addSpouseId(person.getId());
+                }
             }
         }
     }
 
-
-    public Person findById(String id) {
-        return personMap.get(id);
+    // Persistence
+    public void saveData() {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(FILE_NAME))) {
+            oos.writeObject(people);
+            oos.writeObject(layoutPositions);
+        } catch (IOException e) {
+            System.err.println("Failed to save data: " + e.getMessage());
+        }
     }
+    // This is the new method you need to add
+    public void updatePerson(Person person) {
+        // We simply replace the old Person object with the new one.
+        // The ID remains the same, but other properties are updated.
+        if (people.containsKey(person.getId())) {
+            people.put(person.getId(), person);
 
-    /**
-     * Establishes a parent-child relationship.
-     * @param parentId The ID of the parent.
-     * @param childId The ID of the child.
-     * @param type "mother" or "father"
-     */
-    public void setParentChildRelationship(String parentId, String childId, String type) {
-        Person parent = findById(parentId);
-        Person child = findById(childId);
-
-        if (parent == null || child == null) return;
-
-        // Ensure child points to parent
-        if ("mother".equalsIgnoreCase(type)) {
-            // If child already has a mother, remove the old relationship first
-            if (child.getMotherId() != null && !child.getMotherId().equals(parentId)) {
-                removeParentChildRelationship(child.getMotherId(), childId);
+            // The personList also needs to be updated.
+            // This is a simple way to do it.
+            int index = personList.indexOf(person);
+            if (index != -1) {
+                personList.set(index, person);
             }
-            child.setMotherId(parentId);
-        } else if ("father".equalsIgnoreCase(type)) {
-            // If child already has a father, remove the old relationship first
-            if (child.getFatherId() != null && !child.getFatherId().equals(parentId)) {
-                removeParentChildRelationship(child.getFatherId(), childId);
-            }
-            child.setFatherId(parentId);
         }
+    }
+    @SuppressWarnings("unchecked")
+    public void loadData() {
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(FILE_NAME))) {
+            Map<String, Person> loadedPeople = (Map<String, Person>) ois.readObject();
+            Map<String, Position> loadedLayout = (Map<String, Position>) ois.readObject();
 
-        // Ensure parent lists child
-        if (!parent.getChildrenIds().contains(childId)) {
-            parent.getChildrenIds().add(childId);
+            this.people.clear();
+            this.people.putAll(loadedPeople);
+            this.layoutPositions.clear();
+            this.layoutPositions.putAll(loadedLayout);
+
+            this.personList.clear();
+            this.personList.addAll(people.values());
+
+            // Re-establish consistent relationships after loading
+            linkAllRelationships();
+
+        } catch (FileNotFoundException e) {
+            System.out.println("No saved data found. Starting with an empty tree.");
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Failed to load data: " + e.getMessage());
         }
     }
 
-    /**
-     * Removes a parent-child relationship.
-     * @param parentId The ID of the parent.
-     * @param childId The ID of the child.
-     */
-    public void removeParentChildRelationship(String parentId, String childId) {
-        Person parent = findById(parentId);
-        Person child = findById(childId);
+    // Add this method to FamilyTreeData.java
+    public void setAllData(FamilyTreeData other) {
+        this.people.clear();
+        this.people.putAll(other.people);
 
-        if (parent == null || child == null) return;
+        this.layoutPositions.clear();
+        this.layoutPositions.putAll(other.layoutPositions);
 
-        // Remove child's reference to parent
-        if (Objects.equals(child.getMotherId(), parentId)) {
-            child.setMotherId(null);
-        }
-        if (Objects.equals(child.getFatherId(), parentId)) {
-            child.setFatherId(null);
-        }
-
-        // Remove parent's reference to child
-        parent.getChildrenIds().remove(childId);
-    }
-
-    /**
-     * Establishes a spouse relationship (mutual).
-     * @param person1Id The ID of the first person.
-     * @param person2Id The ID of the second person.
-     */
-    public void setSpouseRelationship(String person1Id, String person2Id) {
-        Person p1 = findById(person1Id);
-        Person p2 = findById(person2Id);
-
-        if (p1 == null || p2 == null) return;
-
-        if (!p1.getSpouseIds().contains(person2Id)) {
-            p1.getSpouseIds().add(person2Id);
-        }
-        if (!p2.getSpouseIds().contains(person1Id)) {
-            p2.getSpouseIds().add(person1Id);
-        }
-    }
-
-    /**
-     * Removes a spouse relationship (mutual).
-     * @param person1Id The ID of the first person.
-     * @param person2Id The ID of the second person.
-     */
-    public void removeSpouseRelationship(String person1Id, String person2Id) {
-        Person p1 = findById(person1Id);
-        Person p2 = findById(person2Id);
-
-        if (p1 == null || p2 == null) return;
-
-        p1.getSpouseIds().remove(person2Id);
-        p2.getSpouseIds().remove(person1Id);
+        this.personList.clear();
+        this.personList.addAll(this.people.values());
     }
 }

@@ -12,16 +12,17 @@ public class TreeLayout {
 
         int horizontalSpacing = 250;
         int verticalSpacing = 200;
-        int x = 100;
-        int y = 100;
+        int x = 100; // Starting X coordinate
+        int y = 100; // Starting Y coordinate
 
+        // Simple linear layout for now. More complex algorithms can be added here.
         for (int i = 0; i < persons.size(); i++) {
             Person person = persons.get(i);
-            layoutMap.put(person.getId(), new Position(x, y, person.getId()));
+            layoutMap.put(person.getId(), new Position(x, y, person.getId())); // Store position for this person
             x += horizontalSpacing;
 
-            // Wrap to new row if needed
-            if (x > 1200) {
+            // Wrap to new row if horizontal space is exceeded
+            if (x > 1200) { // Adjust 1200 based on desired canvas width
                 x = 100;
                 y += verticalSpacing;
             }

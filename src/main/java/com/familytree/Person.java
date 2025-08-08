@@ -1,133 +1,160 @@
 package com.familytree;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import javafx.embed.swing.SwingFXUtils;
-import javafx.scene.image.Image;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException; // Added import for IOException
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.UUID;
-
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class Person {
     private String id;
     private String name;
-    private String dateOfBirth;
-    private String dateOfDeath;
+    private String birthDate;
+    private String deathDate;
     private String gender;
-    private String placeOfBirth;
+    private String bio;
     private String occupation;
-    private String notes;
-    private String photoBase64;
+    private String profilePicturePath;
 
-    // --- Relationship fields (ID-based) ---
-    private String motherId;
     private String fatherId;
-    private final List<String> childrenIds = new ArrayList<>();
-    private final List<String> spouseIds = new ArrayList<>();
+    private String motherId;
 
-    // --- Position fields for visualization ---
-    private double x; // Added for X coordinate
-    private double y; // Added for Y coordinate
+    private final Set<String> spouseIds;
+    private final Set<String> childIds;
 
-
-    public Person() {
-        this.id = UUID.randomUUID().toString();
+    // A simple constructor for creating new people
+    public Person(String id, String name) {
+        this.id = id;
+        this.name = name;
+        this.spouseIds = new HashSet<>();
+        this.childIds = new HashSet<>();
+        this.birthDate = "";
+        this.deathDate = "";
+        this.gender = "";
+        this.bio = "";
+        this.occupation = "";
+        this.fatherId = null;
+        this.motherId = null;
+        this.profilePicturePath = null;
     }
 
-    public Person(String name) {
-        this(); // Call default constructor to initialize ID
+    // A more comprehensive constructor for loading data
+    public Person(String id, String name, String birthDate, String deathDate, String gender,
+                  String bio, String occupation, String fatherId, String motherId,
+                  String profilePicturePath, Set<String> spouseIds, Set<String> childIds) {
+        this.id = id;
+        this.name = name;
+        this.birthDate = birthDate;
+        this.deathDate = deathDate;
+        this.gender = gender;
+        this.bio = bio;
+        this.occupation = occupation;
+        this.fatherId = fatherId;
+        this.motherId = motherId;
+        this.profilePicturePath = profilePicturePath;
+        this.spouseIds = spouseIds != null ? new HashSet<>(spouseIds) : new HashSet<>();
+        this.childIds = childIds != null ? new HashSet<>(childIds) : new HashSet<>();
+    }
+
+    // Getters
+    public String getId() {
+        return id;
+    }
+    public String getName() {
+        return name;
+    }
+    public String getBirthDate() {
+        return birthDate;
+    }
+    public String getDeathDate() {
+        return deathDate;
+    }
+    public String getGender() {
+        return gender;
+    }
+    public String getBio() {
+        return bio;
+    }
+    public String getOccupation() {
+        return occupation;
+    }
+    public String getProfilePicturePath() {
+        return profilePicturePath;
+    }
+    public String getFatherId() {
+        return fatherId;
+    }
+    public String getMotherId() {
+        return motherId;
+    }
+    public Set<String> getSpouseIds() {
+        return spouseIds;
+    }
+    public Set<String> getChildIds() {
+        return childIds;
+    }
+
+    // Setters
+    public void setName(String name) {
         this.name = name;
     }
-
-    // Getters and Setters
-
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
-
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-
-    public String getDateOfBirth() { return dateOfBirth; }
-    public void setDateOfBirth(String dateOfBirth) { this.dateOfBirth = dateOfBirth; }
-
-    public String getDateOfDeath() { return dateOfDeath; }
-    public void setDateOfDeath(String dateOfDeath) { this.dateOfDeath = dateOfDeath; }
-
-    public String getGender() { return gender; }
-    public void setGender(String gender) { this.gender = gender; }
-
-    public String getPlaceOfBirth() { return placeOfBirth; }
-    public void setPlaceOfBirth(String placeOfBirth) { this.placeOfBirth = placeOfBirth; }
-
-    public String getOccupation() { return occupation; }
-    public void setOccupation(String occupation) { this.occupation = occupation; }
-
-    public String getNotes() { return notes; }
-    public void setNotes(String notes) { this.notes = notes; }
-
-    public String getPhotoBase64() { return photoBase64; }
-    public void setPhotoBase64(String photoBase64) { this.photoBase64 = photoBase64; }
-
-    // --- Getters and Setters for ID-based relationships ---
-    public String getMotherId() { return motherId; }
-    public void setMotherId(String motherId) { this.motherId = motherId; }
-
-    public String getFatherId() { return fatherId; }
-    public void setFatherId(String fatherId) { this.fatherId = fatherId; }
-
-    public List<String> getChildrenIds() { return childrenIds; }
-    public List<String> getSpouseIds() { return spouseIds; }
-
-    // --- Getters and Setters for Position ---
-    public double getX() { return x; }
-    public void setX(double x) { this.x = x; }
-
-    public double getY() { return y; }
-    public void setY(double y) { this.y = y; }
-
-
-    // Utilities for photo conversion
-    public static String imageToBase64(Image image) throws Exception {
-        BufferedImage bImage = SwingFXUtils.fromFXImage(image, null);
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ImageIO.write(bImage, "png", bos);
-        byte[] imageBytes = bos.toByteArray();
-        return Base64.getEncoder().encodeToString(imageBytes);
+    public void setBirthDate(String birthDate) {
+        this.birthDate = birthDate;
+    }
+    public void setDeathDate(String deathDate) {
+        this.deathDate = deathDate;
+    }
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+    public void setBio(String bio) {
+        this.bio = bio;
+    }
+    public void setOccupation(String occupation) {
+        this.occupation = occupation;
+    }
+    public void setProfilePicturePath(String profilePicturePath) {
+        this.profilePicturePath = profilePicturePath;
+    }
+    public void setFatherId(String fatherId) {
+        this.fatherId = fatherId;
+    }
+    public void setMotherId(String motherId) {
+        this.motherId = motherId;
     }
 
-    public static Image base64ToImage(String base64) {
-        try {
-            byte[] decoded = Base64.getDecoder().decode(base64);
-            ByteArrayInputStream bis = new ByteArrayInputStream(decoded);
-            BufferedImage bImage = ImageIO.read(bis);
-            return SwingFXUtils.toFXImage(bImage, null);
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
+    // Relationship methods
+    public void addSpouseId(String spouseId) {
+        this.spouseIds.add(spouseId);
+    }
+    public void removeSpouseId(String spouseId) {
+        this.spouseIds.remove(spouseId);
+    }
+    public void addChildId(String childId) {
+        this.childIds.add(childId);
+    }
+    public void removeChildId(String childId) {
+        this.childIds.remove(childId);
     }
 
-    // Copy method to update personal details (X,Y are copied here as they are part of Person's state)
-    public void copyFrom(Person other) {
-        this.name = other.getName();
-        this.dateOfBirth = other.getDateOfBirth();
-        this.dateOfDeath = other.getDateOfDeath();
-        this.gender = other.getGender();
-        this.placeOfBirth = other.getPlaceOfBirth();
-        this.occupation = other.getOccupation();
-        this.notes = other.getNotes();
-        this.photoBase64 = other.getPhotoBase64();
-        // Copy position as well when copying person details
-        this.x = other.getX();
-        this.y = other.getY();
-        // Relationship IDs (motherId, fatherId, childrenIds, spouseIds) are handled by FamilyTreeData's methods
-        // and are updated explicitly in PersonDialog's callback, not via copyFrom for Person's internal fields.
+    // Override equals and hashCode for proper collection usage
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Person person = (Person) o;
+        return Objects.equals(id, person.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
+    // Override toString for debugging
+    @Override
+    public String toString() {
+        return "Person{" +
+                "id='" + id + '\'' +
+                ", name='" + name + '\'' +
+                '}';
     }
 }
