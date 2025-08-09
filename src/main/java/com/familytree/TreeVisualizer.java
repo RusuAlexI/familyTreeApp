@@ -21,10 +21,9 @@ public class TreeVisualizer {
     private final FamilyTreeData data = FamilyTreeData.getInstance();
     private final Map<String, PersonCell> personCellMap = new HashMap<>();
 
-    // This is the correct way to track the selected cell
     private PersonCell selectedCell;
+    private PersonCell overlappingCell;
 
-    // We need to pass the Pane to the constructor
     public TreeVisualizer(Pane visualizationPane) {
         this.visualizationPane = visualizationPane;
         this.visualizationPane.getStyleClass().add("visualization-pane");
@@ -34,16 +33,13 @@ public class TreeVisualizer {
         System.out.println("TreeVisualizer refresh() called. Person count: " + data.getAllPeople().size());
         clearSelection();
 
-        // Clear all existing nodes and lines
         visualizationPane.getChildren().clear();
         personCellMap.clear();
 
-        // 1. Create and position PersonCells
         for (Person person : data.getAllPeople()) {
             PersonCell personCell = new PersonCell(person);
             personCellMap.put(person.getId(), personCell);
 
-            // Set position based on saved layout or default
             Position layoutPosition = data.getLayoutPosition(person.getId());
             if (layoutPosition != null && !Double.isNaN(layoutPosition.getX()) && !Double.isNaN(layoutPosition.getY())) {
                 personCell.setLayoutX(layoutPosition.getX());
@@ -67,18 +63,16 @@ public class TreeVisualizer {
             visualizationPane.getChildren().add(personCell);
         }
 
-        // 2. Draw relationships (lines)
         for (Person person : data.getAllPeople()) {
             PersonCell sourceCell = personCellMap.get(person.getId());
             if (sourceCell == null) continue;
 
-            // Draw parent-child relationships
             if (person.getFatherId() != null) {
                 PersonCell fatherCell = personCellMap.get(person.getFatherId());
                 if (fatherCell != null) {
                     Line line = createConnectionLine(fatherCell, sourceCell);
                     line.setStroke(Color.BLUE);
-                    visualizationPane.getChildren().add(0, line); // Add to back
+                    visualizationPane.getChildren().add(0, line);
                 }
             }
             if (person.getMotherId() != null) {
@@ -86,11 +80,10 @@ public class TreeVisualizer {
                 if (motherCell != null) {
                     Line line = createConnectionLine(motherCell, sourceCell);
                     line.setStroke(Color.BLUE);
-                    visualizationPane.getChildren().add(0, line); // Add to back
+                    visualizationPane.getChildren().add(0, line);
                 }
             }
 
-            // Draw spouse relationships
             for (String spouseId : person.getSpouseIds()) {
                 if (spouseId.compareTo(person.getId()) > 0) {
                     PersonCell spouseCell = personCellMap.get(spouseId);
@@ -98,7 +91,7 @@ public class TreeVisualizer {
                         Line line = createConnectionLine(sourceCell, spouseCell);
                         line.setStroke(Color.ORANGE);
                         line.getStrokeDashArray().addAll(5d, 5d);
-                        visualizationPane.getChildren().add(0, line); // Add to back
+                        visualizationPane.getChildren().add(0, line);
                     }
                 }
             }
@@ -111,7 +104,6 @@ public class TreeVisualizer {
         Line line = new Line();
         line.setStrokeWidth(2);
 
-        // Bind the line's endpoints to the center of the nodes
         line.startXProperty().bind(startNode.layoutXProperty().add(((Region)startNode).widthProperty().divide(2)));
         line.startYProperty().bind(startNode.layoutYProperty().add(((Region)startNode).heightProperty().divide(2)));
         line.endXProperty().bind(endNode.layoutXProperty().add(((Region)endNode).widthProperty().divide(2)));
@@ -121,7 +113,6 @@ public class TreeVisualizer {
     }
 
     private void addInteractionsToPersonCell(PersonCell personCell) {
-        // Correct selection logic using getStyleClass() for CSS styling
         personCell.setOnMouseClicked(event -> {
             clearSelection();
             selectedCell = personCell;
@@ -133,8 +124,10 @@ public class TreeVisualizer {
         final double[] mouseOffset = new double[2];
 
         personCell.setOnMousePressed(event -> {
-            // Drag only starts if the left mouse button is pressed
             if (event.isPrimaryButtonDown()) {
+                clearSelection();
+                selectedCell = personCell;
+                selectedCell.getStyleClass().add("selected-cell");
                 mouseOffset[0] = event.getSceneX() - personCell.getLayoutX();
                 mouseOffset[1] = event.getSceneY() - personCell.getLayoutY();
                 personCell.toFront();
@@ -156,15 +149,23 @@ public class TreeVisualizer {
                 personCell.setLayoutX(newX);
                 personCell.setLayoutY(newY);
 
+                // Check for overlaps with other cells
+                checkForOverlaps(personCell);
+
                 data.setLayoutPosition(personCell.getPerson().getId(), new Position(newX, newY));
                 event.consume();
             }
         });
 
         personCell.setOnMouseReleased(event -> {
-            // A click is a mouse press and release without dragging.
-            // If the cell moved, we don't treat it as a click.
-            // No need for refresh() here as bindings handle line updates.
+            if (overlappingCell != null && selectedCell != null && overlappingCell != selectedCell) {
+                // Show the relationship dialog when drag is released on an overlapping cell
+                showRelationshipDialog(selectedCell, overlappingCell);
+                // Clear the overlap and selected cells
+                overlappingCell.getStyleClass().remove("overlapping-cell");
+                overlappingCell = null;
+                selectedCell = null;
+            }
             event.consume();
         });
 
@@ -199,7 +200,6 @@ public class TreeVisualizer {
         contextMenu.getItems().addAll(addChildItem, addSpouseItem, editItem, deleteItem);
 
         personCell.setOnContextMenuRequested(event -> {
-            // Ensure the context menu only shows for the selected cell
             clearSelection();
             selectedCell = personCell;
             selectedCell.getStyleClass().add("selected-cell");
@@ -209,7 +209,6 @@ public class TreeVisualizer {
         });
     }
 
-    // Methods to interact with the tree (add, edit, delete)
     public void addPerson(Person parentForNew) {
         Person newPerson = new Person(UUID.randomUUID().toString(), "New Person");
 
@@ -290,4 +289,64 @@ public class TreeVisualizer {
         alert.setContentText(message);
         alert.showAndWait();
     }
+
+    /**
+     * Checks for overlaps between the currently dragged cell and other cells.
+     */
+    private void checkForOverlaps(PersonCell draggedCell) {
+        if (overlappingCell != null) {
+            overlappingCell.getStyleClass().remove("overlapping-cell");
+            overlappingCell = null;
+        }
+        for (PersonCell cell : personCellMap.values()) {
+            if (cell != draggedCell) {
+                // Get the bounds of the cells in the parent's coordinate system
+                javafx.geometry.Bounds draggedBounds = draggedCell.getBoundsInParent();
+                javafx.geometry.Bounds cellBounds = cell.getBoundsInParent();
+
+                // Check for intersection
+                if (draggedBounds.intersects(cellBounds)) {
+                    overlappingCell = cell;
+                    overlappingCell.getStyleClass().add("overlapping-cell");
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
+     * Displays a dialog to set a relationship between two people.
+     */
+    private void showRelationshipDialog(PersonCell person1Cell, PersonCell person2Cell) {
+        Person person1 = person1Cell.getPerson();
+        Person person2 = person2Cell.getPerson();
+
+        RelationshipDialog dialog = new RelationshipDialog(person1, person2);
+        Optional<RelationshipDialog.RelationshipResult> result = dialog.showAndWait();
+
+        result.ifPresent(relationship -> {
+            try {
+                // Apply the relationship based on the user's choice
+                switch (relationship.type()) {
+                    case PARENT_CHILD -> {
+                        Person parent = data.getPerson(relationship.parent().getId());
+                        Person child = data.getPerson(relationship.child().getId());
+                        data.setParentChildRelationship(parent, child);
+                    }
+                    case SPOUSE -> {
+                        Person spouse1 = data.getPerson(relationship.spouse1().getId());
+                        Person spouse2 = data.getPerson(relationship.spouse2().getId());
+                        data.setSpouseRelationship(spouse1, spouse2);
+                    }
+                }
+                data.linkAllRelationships(); // Re-link all relationships to be safe
+                refresh();
+            } catch (IllegalStateException e) {
+                showAlert(Alert.AlertType.WARNING, "Relationship Error", e.getMessage());
+                // Refresh to redraw without the new (invalid) relationship
+                refresh();
+            }
+        });
+    }
+
 }

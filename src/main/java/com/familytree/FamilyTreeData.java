@@ -189,4 +189,24 @@ public class FamilyTreeData {
         this.personList.clear();
         this.personList.addAll(this.people.values());
     }
+
+    public void setParentChildRelationship(Person parent, Person child) {
+        if (child.getFatherId() != null && child.getMotherId() != null) {
+            throw new IllegalStateException("This person already has two parents set.");
+        }
+
+        // Set parent and child relationships
+        if ("Male".equals(parent.getGender())) {
+            child.setFatherId(parent.getId());
+        } else {
+            child.setMotherId(parent.getId());
+        }
+        parent.addChildId(child.getId());
+    }
+
+    public void setSpouseRelationship(Person spouse1, Person spouse2) {
+        // Add each person to the other's spouse list
+        spouse1.addSpouseId(spouse2.getId());
+        spouse2.addSpouseId(spouse1.getId());
+    }
 }
