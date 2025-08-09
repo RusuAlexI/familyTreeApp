@@ -4,14 +4,17 @@ import javafx.geometry.Point2D;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -19,7 +22,7 @@ public class TreeVisualizer {
 
     private final Pane visualizationPane;
     private final FamilyTreeData data = FamilyTreeData.getInstance();
-    private final Map<String, PersonCell> personCellMap = new HashMap<>();
+    private final Map<String, javafx.scene.Node> nodeMap = new HashMap<>(); // Using Node to hold PersonCells or HBoxes
 
     private PersonCell selectedCell;
     private PersonCell overlappingCell;
@@ -27,6 +30,46 @@ public class TreeVisualizer {
     public TreeVisualizer(Pane visualizationPane) {
         this.visualizationPane = visualizationPane;
         this.visualizationPane.getStyleClass().add("visualization-pane");
+
+        // Add drag handlers for the background
+        final double[] dragOffset = new double[2];
+
+        this.visualizationPane.setOnMousePressed(event -> {
+            if (event.getTarget() == visualizationPane) { // Check if the click is on the pane itself
+                dragOffset[0] = event.getSceneX();
+                dragOffset[1] = event.getSceneY();
+                event.consume();
+            }
+        });
+
+        this.visualizationPane.setOnMouseDragged(event -> {
+            if (event.getTarget() == visualizationPane) { // Check if the drag started on the pane
+                double deltaX = event.getSceneX() - dragOffset[0];
+                double deltaY = event.getSceneY() - dragOffset[1];
+
+                for (javafx.scene.Node node : visualizationPane.getChildren()) {
+                    node.setLayoutX(node.getLayoutX() + deltaX);
+                    node.setLayoutY(node.getLayoutY() + deltaY);
+                }
+                dragOffset[0] = event.getSceneX();
+                dragOffset[1] = event.getSceneY();
+                event.consume();
+            }
+        });
+
+        // Add zoom handlers
+        visualizationPane.setOnScroll(event -> {
+            double zoomFactor = 1.05;
+            double deltaY = event.getDeltaY();
+
+            if (deltaY < 0) {
+                zoomFactor = 2.0 - zoomFactor;
+            }
+
+            visualizationPane.setScaleX(visualizationPane.getScaleX() * zoomFactor);
+            visualizationPane.setScaleY(visualizationPane.getScaleY() * zoomFactor);
+            event.consume();
+        });
     }
 
     public void refresh() {
@@ -34,51 +77,80 @@ public class TreeVisualizer {
         clearSelection();
 
         visualizationPane.getChildren().clear();
-        personCellMap.clear();
+        nodeMap.clear();
 
+        Set<String> processedPeople = new HashSet<>();
+
+        // 1. Create and position all visual nodes
         for (Person person : data.getAllPeople()) {
-            PersonCell personCell = new PersonCell(person);
-            personCellMap.put(person.getId(), personCell);
-
-            Position layoutPosition = data.getLayoutPosition(person.getId());
-            if (layoutPosition != null && !Double.isNaN(layoutPosition.getX()) && !Double.isNaN(layoutPosition.getY())) {
-                personCell.setLayoutX(layoutPosition.getX());
-                personCell.setLayoutY(layoutPosition.getY());
-            } else {
-                double paneWidth = visualizationPane.getWidth() > 0 ? visualizationPane.getWidth() : 800;
-                double paneHeight = visualizationPane.getHeight() > 0 ? visualizationPane.getHeight() : 600;
-
-                double defaultX = 50 + (personCellMap.size() * 10 % (paneWidth - 100));
-                double defaultY = 50 + (personCellMap.size() * 10 % (paneHeight - 100));
-
-                defaultX = Math.max(0, Math.min(defaultX, paneWidth - personCell.getPrefWidth()));
-                defaultY = Math.max(0, Math.min(defaultY, paneHeight - personCell.getPrefHeight()));
-
-                personCell.setLayoutX(defaultX);
-                personCell.setLayoutY(defaultY);
-                data.setLayoutPosition(person.getId(), new Position(defaultX, defaultY));
+            if (processedPeople.contains(person.getId())) {
+                continue;
             }
 
-            addInteractionsToPersonCell(personCell);
-            visualizationPane.getChildren().add(personCell);
+            if (person.getSpouseIds() != null && !person.getSpouseIds().isEmpty()) {
+                String spouseId = person.getSpouseIds().iterator().next();
+                Person spouse = data.getPerson(spouseId);
+                if (spouse != null && !processedPeople.contains(spouse.getId())) {
+                    PersonCell person1Cell = new PersonCell(person);
+                    PersonCell person2Cell = new PersonCell(spouse);
+
+                    HBox spouseGroup = new HBox(10);
+                    spouseGroup.getChildren().addAll(person1Cell, person2Cell);
+                    spouseGroup.getStyleClass().add("spouse-group");
+
+                    addSpouseGroupInteractions(spouseGroup, person, spouse);
+
+                    nodeMap.put(person.getId(), spouseGroup);
+                    nodeMap.put(spouse.getId(), spouseGroup);
+                    processedPeople.add(person.getId());
+                    processedPeople.add(spouse.getId());
+
+                    visualizationPane.getChildren().add(spouseGroup);
+
+                    Position layoutPosition = data.getLayoutPosition(person.getId());
+                    if (layoutPosition != null) {
+                        spouseGroup.setLayoutX(layoutPosition.getX());
+                        spouseGroup.setLayoutY(layoutPosition.getY());
+                    } else {
+                        spouseGroup.setLayoutX(50 + processedPeople.size() * 10 % (visualizationPane.getWidth() - 100));
+                        spouseGroup.setLayoutY(50);
+                    }
+                }
+            } else {
+                PersonCell personCell = new PersonCell(person);
+                addInteractionsToPersonCell(personCell);
+                nodeMap.put(person.getId(), personCell);
+                processedPeople.add(person.getId());
+                visualizationPane.getChildren().add(personCell);
+
+                Position layoutPosition = data.getLayoutPosition(person.getId());
+                if (layoutPosition != null) {
+                    personCell.setLayoutX(layoutPosition.getX());
+                    personCell.setLayoutY(layoutPosition.getY());
+                } else {
+                    personCell.setLayoutX(50 + processedPeople.size() * 10 % (visualizationPane.getWidth() - 100));
+                    personCell.setLayoutY(50);
+                }
+            }
         }
 
+        // 2. Draw all the connection lines
         for (Person person : data.getAllPeople()) {
-            PersonCell sourceCell = personCellMap.get(person.getId());
-            if (sourceCell == null) continue;
+            javafx.scene.Node sourceNode = nodeMap.get(person.getId());
+            if (sourceNode == null) continue;
 
             if (person.getFatherId() != null) {
-                PersonCell fatherCell = personCellMap.get(person.getFatherId());
-                if (fatherCell != null) {
-                    Line line = createConnectionLine(fatherCell, sourceCell);
+                javafx.scene.Node fatherNode = nodeMap.get(person.getFatherId());
+                if (fatherNode != null) {
+                    Line line = createConnectionLine(fatherNode, sourceNode);
                     line.setStroke(Color.BLUE);
                     visualizationPane.getChildren().add(0, line);
                 }
             }
             if (person.getMotherId() != null) {
-                PersonCell motherCell = personCellMap.get(person.getMotherId());
-                if (motherCell != null) {
-                    Line line = createConnectionLine(motherCell, sourceCell);
+                javafx.scene.Node motherNode = nodeMap.get(person.getMotherId());
+                if (motherNode != null) {
+                    Line line = createConnectionLine(motherNode, sourceNode);
                     line.setStroke(Color.BLUE);
                     visualizationPane.getChildren().add(0, line);
                 }
@@ -86,9 +158,9 @@ public class TreeVisualizer {
 
             for (String spouseId : person.getSpouseIds()) {
                 if (spouseId.compareTo(person.getId()) > 0) {
-                    PersonCell spouseCell = personCellMap.get(spouseId);
-                    if (spouseCell != null) {
-                        Line line = createConnectionLine(sourceCell, spouseCell);
+                    javafx.scene.Node spouseNode = nodeMap.get(spouseId);
+                    if (spouseNode != null) {
+                        Line line = createConnectionLine(sourceNode, spouseNode);
                         line.setStroke(Color.ORANGE);
                         line.getStrokeDashArray().addAll(5d, 5d);
                         visualizationPane.getChildren().add(0, line);
@@ -96,20 +168,82 @@ public class TreeVisualizer {
                 }
             }
         }
-
-        System.out.println("TreeVisualizer refresh() finished.");
     }
 
     private Line createConnectionLine(javafx.scene.Node startNode, javafx.scene.Node endNode) {
         Line line = new Line();
         line.setStrokeWidth(2);
 
-        line.startXProperty().bind(startNode.layoutXProperty().add(((Region)startNode).widthProperty().divide(2)));
-        line.startYProperty().bind(startNode.layoutYProperty().add(((Region)startNode).heightProperty().divide(2)));
-        line.endXProperty().bind(endNode.layoutXProperty().add(((Region)endNode).widthProperty().divide(2)));
-        line.endYProperty().bind(endNode.layoutYProperty().add(((Region)endNode).heightProperty().divide(2)));
+        // Bind the start point to the center of the start node
+        if (startNode instanceof HBox) {
+            HBox spouseGroup = (HBox) startNode;
+            line.startXProperty().bind(spouseGroup.layoutXProperty().add(spouseGroup.widthProperty().divide(2)));
+            line.startYProperty().bind(spouseGroup.layoutYProperty().add(spouseGroup.heightProperty().divide(2)));
+        } else {
+            Region startRegion = (Region) startNode;
+            line.startXProperty().bind(startRegion.layoutXProperty().add(startRegion.widthProperty().divide(2)));
+            line.startYProperty().bind(startRegion.layoutYProperty().add(startRegion.heightProperty().divide(2)));
+        }
+
+        // Bind the end point to the center of the end node
+        if (endNode instanceof HBox) {
+            HBox spouseGroup = (HBox) endNode;
+            line.endXProperty().bind(spouseGroup.layoutXProperty().add(spouseGroup.widthProperty().divide(2)));
+            line.endYProperty().bind(spouseGroup.layoutYProperty().add(spouseGroup.heightProperty().divide(2)));
+        } else {
+            Region endRegion = (Region) endNode;
+            line.endXProperty().bind(endRegion.layoutXProperty().add(endRegion.widthProperty().divide(2)));
+            line.endYProperty().bind(endRegion.layoutYProperty().add(endRegion.heightProperty().divide(2)));
+        }
 
         return line;
+    }
+
+    private void addSpouseGroupInteractions(HBox spouseGroup, Person person1, Person person2) {
+        final double[] mouseOffset = new double[2];
+
+        spouseGroup.setOnMousePressed(event -> {
+            if (event.isPrimaryButtonDown()) {
+                clearSelection();
+                // Select both people in the group for context menu purposes
+                PersonCell person1Cell = (PersonCell) spouseGroup.getChildren().get(0);
+                PersonCell person2Cell = (PersonCell) spouseGroup.getChildren().get(1);
+                selectedCell = person1Cell;
+                person1Cell.getStyleClass().add("selected-cell");
+                person2Cell.getStyleClass().add("selected-cell");
+
+                mouseOffset[0] = event.getSceneX() - spouseGroup.getLayoutX();
+                mouseOffset[1] = event.getSceneY() - spouseGroup.getLayoutY();
+                spouseGroup.toFront();
+                event.consume();
+            }
+        });
+
+        spouseGroup.setOnMouseDragged(event -> {
+            if (event.isPrimaryButtonDown()) {
+                double newX = event.getSceneX() - mouseOffset[0];
+                double newY = event.getSceneY() - mouseOffset[1];
+
+                double paneWidth = visualizationPane.getWidth();
+                double paneHeight = visualizationPane.getHeight();
+
+                newX = Math.max(0, Math.min(newX, paneWidth - spouseGroup.getWidth()));
+                newY = Math.max(0, Math.min(newY, paneHeight - spouseGroup.getHeight()));
+
+                spouseGroup.setLayoutX(newX);
+                spouseGroup.setLayoutY(newY);
+
+                // Update the layout positions for both people in the group
+                data.setLayoutPosition(person1.getId(), new Position(newX, newY));
+                data.setLayoutPosition(person2.getId(), new Position(newX + spouseGroup.getWidth() / 2, newY));
+
+                event.consume();
+            }
+        });
+
+        spouseGroup.setOnMouseReleased(event -> {
+            event.consume();
+        });
     }
 
     private void addInteractionsToPersonCell(PersonCell personCell) {
@@ -120,7 +254,6 @@ public class TreeVisualizer {
             event.consume();
         });
 
-        // Dragging functionality
         final double[] mouseOffset = new double[2];
 
         personCell.setOnMousePressed(event -> {
@@ -149,7 +282,6 @@ public class TreeVisualizer {
                 personCell.setLayoutX(newX);
                 personCell.setLayoutY(newY);
 
-                // Check for overlaps with other cells
                 checkForOverlaps(personCell);
 
                 data.setLayoutPosition(personCell.getPerson().getId(), new Position(newX, newY));
@@ -159,9 +291,7 @@ public class TreeVisualizer {
 
         personCell.setOnMouseReleased(event -> {
             if (overlappingCell != null && selectedCell != null && overlappingCell != selectedCell) {
-                // Show the relationship dialog when drag is released on an overlapping cell
                 showRelationshipDialog(selectedCell, overlappingCell);
-                // Clear the overlap and selected cells
                 overlappingCell.getStyleClass().remove("overlapping-cell");
                 overlappingCell = null;
                 selectedCell = null;
@@ -226,9 +356,9 @@ public class TreeVisualizer {
 
         result.ifPresent(p -> {
             data.addPerson(p);
-            if (parentForNew != null && personCellMap.containsKey(parentForNew.getId())) {
-                PersonCell parentCell = personCellMap.get(parentForNew.getId());
-                data.setLayoutPosition(p.getId(), new Position(parentCell.getLayoutX(), parentCell.getLayoutY() + 150));
+            if (parentForNew != null && nodeMap.containsKey(parentForNew.getId())) {
+                javafx.scene.Node parentNode = nodeMap.get(parentForNew.getId());
+                data.setLayoutPosition(p.getId(), new Position(parentNode.getLayoutX(), parentNode.getLayoutY() + 150));
             } else {
                 double paneWidth = visualizationPane.getWidth() > 0 ? visualizationPane.getWidth() : 800;
                 double paneHeight = visualizationPane.getHeight() > 0 ? visualizationPane.getHeight() : 600;
@@ -280,6 +410,17 @@ public class TreeVisualizer {
             selectedCell.getStyleClass().remove("selected-cell");
             selectedCell = null;
         }
+
+        // Also clear selection from spouse group if it was selected
+        for(javafx.scene.Node node : nodeMap.values()){
+            if(node instanceof HBox){
+                ((HBox) node).getChildren().forEach(child -> {
+                    if(child.getStyleClass().contains("selected-cell")){
+                        child.getStyleClass().remove("selected-cell");
+                    }
+                });
+            }
+        }
     }
 
     private void showAlert(Alert.AlertType type, String title, String message) {
@@ -290,33 +431,45 @@ public class TreeVisualizer {
         alert.showAndWait();
     }
 
-    /**
-     * Checks for overlaps between the currently dragged cell and other cells.
-     */
     private void checkForOverlaps(PersonCell draggedCell) {
         if (overlappingCell != null) {
             overlappingCell.getStyleClass().remove("overlapping-cell");
             overlappingCell = null;
         }
-        for (PersonCell cell : personCellMap.values()) {
-            if (cell != draggedCell) {
-                // Get the bounds of the cells in the parent's coordinate system
+
+        for (javafx.scene.Node node : visualizationPane.getChildren()) {
+            if (node instanceof PersonCell && node != draggedCell) {
+                PersonCell cell = (PersonCell) node;
                 javafx.geometry.Bounds draggedBounds = draggedCell.getBoundsInParent();
                 javafx.geometry.Bounds cellBounds = cell.getBoundsInParent();
 
-                // Check for intersection
                 if (draggedBounds.intersects(cellBounds)) {
                     overlappingCell = cell;
                     overlappingCell.getStyleClass().add("overlapping-cell");
                     return;
                 }
             }
+
+            if (node instanceof HBox) {
+                HBox spouseGroup = (HBox) node;
+                for (javafx.scene.Node spouseChild : spouseGroup.getChildren()) {
+                    if (spouseChild instanceof PersonCell) {
+                        PersonCell spouseCell = (PersonCell) spouseChild;
+                        if (spouseCell != draggedCell) {
+                            javafx.geometry.Bounds draggedBounds = draggedCell.getBoundsInParent();
+                            javafx.geometry.Bounds spouseBounds = spouseCell.getBoundsInParent();
+                            if (draggedBounds.intersects(spouseBounds)) {
+                                overlappingCell = spouseCell;
+                                overlappingCell.getStyleClass().add("overlapping-cell");
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
-    /**
-     * Displays a dialog to set a relationship between two people.
-     */
     private void showRelationshipDialog(PersonCell person1Cell, PersonCell person2Cell) {
         Person person1 = person1Cell.getPerson();
         Person person2 = person2Cell.getPerson();
@@ -326,7 +479,6 @@ public class TreeVisualizer {
 
         result.ifPresent(relationship -> {
             try {
-                // Apply the relationship based on the user's choice
                 switch (relationship.type()) {
                     case PARENT_CHILD -> {
                         Person parent = data.getPerson(relationship.parent().getId());
@@ -339,14 +491,12 @@ public class TreeVisualizer {
                         data.setSpouseRelationship(spouse1, spouse2);
                     }
                 }
-                data.linkAllRelationships(); // Re-link all relationships to be safe
+                data.linkAllRelationships();
                 refresh();
             } catch (IllegalStateException e) {
                 showAlert(Alert.AlertType.WARNING, "Relationship Error", e.getMessage());
-                // Refresh to redraw without the new (invalid) relationship
                 refresh();
             }
         });
     }
-
 }
