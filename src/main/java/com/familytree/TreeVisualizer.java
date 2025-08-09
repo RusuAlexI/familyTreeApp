@@ -17,6 +17,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.Label;
+import javafx.scene.layout.VBox;
 
 public class TreeVisualizer {
 
@@ -26,6 +30,9 @@ public class TreeVisualizer {
 
     private PersonCell selectedCell;
     private PersonCell overlappingCell;
+
+    // We now keep a reference to the dragged node (which can be a PersonCell or an HBox)
+    private javafx.scene.Node draggedNode;
 
     public TreeVisualizer(Pane visualizationPane) {
         this.visualizationPane = visualizationPane;
@@ -47,9 +54,13 @@ public class TreeVisualizer {
                 double deltaX = event.getSceneX() - dragOffset[0];
                 double deltaY = event.getSceneY() - dragOffset[1];
 
+                // Fix for issue 2: Only move the PersonCells and HBoxes.
+                // The Line objects will follow automatically due to the bindings.
                 for (javafx.scene.Node node : visualizationPane.getChildren()) {
-                    node.setLayoutX(node.getLayoutX() + deltaX);
-                    node.setLayoutY(node.getLayoutY() + deltaY);
+                    if (node instanceof PersonCell || node instanceof HBox) {
+                        node.setLayoutX(node.getLayoutX() + deltaX);
+                        node.setLayoutY(node.getLayoutY() + deltaY);
+                    }
                 }
                 dragOffset[0] = event.getSceneX();
                 dragOffset[1] = event.getSceneY();
@@ -75,6 +86,7 @@ public class TreeVisualizer {
     public void refresh() {
         System.out.println("TreeVisualizer refresh() called. Person count: " + data.getAllPeople().size());
         clearSelection();
+        draggedNode = null; // Clear the dragged node on refresh
 
         visualizationPane.getChildren().clear();
         nodeMap.clear();
@@ -112,12 +124,18 @@ public class TreeVisualizer {
                     visualizationPane.getChildren().add(spouseGroup);
 
                     Position layoutPosition = data.getLayoutPosition(person.getId());
+                    // Fix for issue 3: Ensure a position is always set, even on the first refresh.
                     if (layoutPosition != null) {
                         spouseGroup.setLayoutX(layoutPosition.getX());
                         spouseGroup.setLayoutY(layoutPosition.getY());
                     } else {
-                        spouseGroup.setLayoutX(50 + processedPeople.size() * 10 % (visualizationPane.getWidth() - 100));
+                        double paneWidth = visualizationPane.getWidth() > 0 ? visualizationPane.getWidth() : 800;
+                        double defaultX = 50 + processedPeople.size() * 10 % (paneWidth - 100);
+                        spouseGroup.setLayoutX(defaultX);
                         spouseGroup.setLayoutY(50);
+                        // Save the default position so it's not "teleported" later
+                        data.setLayoutPosition(person.getId(), new Position(defaultX, 50));
+                        data.setLayoutPosition(spouse.getId(), new Position(defaultX + spouseGroup.getWidth() / 2, 50));
                     }
                 }
             } else {
@@ -128,12 +146,24 @@ public class TreeVisualizer {
                 visualizationPane.getChildren().add(personCell);
 
                 Position layoutPosition = data.getLayoutPosition(person.getId());
+                // Fix for issue 3: Ensure a position is always set, even on the first refresh.
                 if (layoutPosition != null) {
                     personCell.setLayoutX(layoutPosition.getX());
                     personCell.setLayoutY(layoutPosition.getY());
                 } else {
-                    personCell.setLayoutX(50 + processedPeople.size() * 10 % (visualizationPane.getWidth() - 100));
-                    personCell.setLayoutY(50);
+                    double paneWidth = visualizationPane.getWidth() > 0 ? visualizationPane.getWidth() : 800;
+                    double paneHeight = visualizationPane.getHeight() > 0 ? visualizationPane.getHeight() : 600;
+
+                    double defaultX = 50 + processedPeople.size() * 10 % (paneWidth - 100);
+                    double defaultY = 50 + processedPeople.size() * 10 % (paneHeight - 120);
+
+                    defaultX = Math.max(0, Math.min(defaultX, paneWidth - 100));
+                    defaultY = Math.max(0, Math.min(defaultY, paneHeight - 120));
+
+                    personCell.setLayoutX(defaultX);
+                    personCell.setLayoutY(defaultY);
+                    // Save the default position so it's not "teleported" later
+                    data.setLayoutPosition(person.getId(), new Position(defaultX, defaultY));
                 }
             }
         }
@@ -203,6 +233,10 @@ public class TreeVisualizer {
         return line;
     }
 
+    /**
+     * This method adds drag-and-drop interactions to the HBox that represents a spouse group.
+     * The drag handler now ensures the entire group moves as a single unit.
+     */
     private void addSpouseGroupInteractions(HBox spouseGroup, Person person1, Person person2) {
         final double[] mouseOffset = new double[2];
 
@@ -212,10 +246,11 @@ public class TreeVisualizer {
                 // Select both people in the group for context menu purposes
                 PersonCell person1Cell = (PersonCell) spouseGroup.getChildren().get(0);
                 PersonCell person2Cell = (PersonCell) spouseGroup.getChildren().get(1);
-                selectedCell = person1Cell;
+                selectedCell = person1Cell; // Use one of them as the selected cell for context menu
                 person1Cell.getStyleClass().add("selected-cell");
                 person2Cell.getStyleClass().add("selected-cell");
 
+                draggedNode = spouseGroup; // Set the dragged node to the HBox
                 mouseOffset[0] = event.getSceneX() - spouseGroup.getLayoutX();
                 mouseOffset[1] = event.getSceneY() - spouseGroup.getLayoutY();
                 spouseGroup.toFront();
@@ -247,18 +282,21 @@ public class TreeVisualizer {
             }
         });
 
-        // The onMouseReleased for a spouse group should only handle the visual aspect.
-        // Relationship creation is now handled by the individual PersonCells.
         spouseGroup.setOnMouseReleased(event -> {
+            // The onMouseReleased for a spouse group should not trigger relationship dialogs,
+            // as a group itself cannot form a relationship with another cell.
+            clearOverlapHighlighting();
             clearSelection();
-            if (overlappingCell != null) {
-                overlappingCell.getStyleClass().remove("overlapping-cell");
-                overlappingCell = null;
-            }
+            draggedNode = null;
             event.consume();
         });
     }
 
+    /**
+     * This method adds drag-and-drop and context menu interactions to a single PersonCell.
+     * The drag handler now correctly identifies if a cell is part of a spouse group and
+     * handles the drag accordingly.
+     */
     private void addInteractionsToPersonCell(PersonCell personCell) {
         // We now add a separate click handler for selection
         personCell.setOnMouseClicked(event -> {
@@ -275,47 +313,69 @@ public class TreeVisualizer {
                 clearSelection();
                 selectedCell = personCell;
                 selectedCell.getStyleClass().add("selected-cell");
-                mouseOffset[0] = event.getSceneX() - personCell.getLayoutX();
-                mouseOffset[1] = event.getSceneY() - personCell.getLayoutY();
-                personCell.toFront();
+
+                // Check if the cell is part of a spouse group. If so, the dragged node is the group.
+                if (personCell.getParent() instanceof HBox) {
+                    draggedNode = (HBox) personCell.getParent();
+                    HBox spouseGroup = (HBox) draggedNode;
+                    mouseOffset[0] = event.getSceneX() - spouseGroup.getLayoutX();
+                    mouseOffset[1] = event.getSceneY() - spouseGroup.getLayoutY();
+                } else {
+                    draggedNode = personCell;
+                    mouseOffset[0] = event.getSceneX() - personCell.getLayoutX();
+                    mouseOffset[1] = event.getSceneY() - personCell.getLayoutY();
+                }
+                draggedNode.toFront();
                 event.consume();
             }
         });
 
         personCell.setOnMouseDragged(event -> {
-            if (event.isPrimaryButtonDown()) {
+            if (event.isPrimaryButtonDown() && draggedNode != null) {
                 double newX = event.getSceneX() - mouseOffset[0];
                 double newY = event.getSceneY() - mouseOffset[1];
 
                 double paneWidth = visualizationPane.getWidth();
                 double paneHeight = visualizationPane.getHeight();
 
-                newX = Math.max(0, Math.min(newX, paneWidth - personCell.getWidth()));
-                newY = Math.max(0, Math.min(newY, paneHeight - personCell.getHeight()));
+                if (draggedNode instanceof PersonCell) {
+                    PersonCell cell = (PersonCell) draggedNode;
+                    newX = Math.max(0, Math.min(newX, paneWidth - cell.getWidth()));
+                    newY = Math.max(0, Math.min(newY, paneHeight - cell.getHeight()));
+                    cell.setLayoutX(newX);
+                    cell.setLayoutY(newY);
+                    data.setLayoutPosition(cell.getPerson().getId(), new Position(newX, newY));
+                } else if (draggedNode instanceof HBox) {
+                    HBox spouseGroup = (HBox) draggedNode;
+                    newX = Math.max(0, Math.min(newX, paneWidth - spouseGroup.getWidth()));
+                    newY = Math.max(0, Math.min(newY, paneHeight - spouseGroup.getHeight()));
+                    spouseGroup.setLayoutX(newX);
+                    spouseGroup.setLayoutY(newY);
+                    // Update positions for both people in the group
+                    PersonCell p1 = (PersonCell) spouseGroup.getChildren().get(0);
+                    PersonCell p2 = (PersonCell) spouseGroup.getChildren().get(1);
+                    data.setLayoutPosition(p1.getPerson().getId(), new Position(newX, newY));
+                    data.setLayoutPosition(p2.getPerson().getId(), new Position(newX + spouseGroup.getWidth() / 2, newY));
+                }
 
-                personCell.setLayoutX(newX);
-                personCell.setLayoutY(newY);
-
-                checkForOverlaps(personCell);
-
-                data.setLayoutPosition(personCell.getPerson().getId(), new Position(newX, newY));
+                checkForOverlaps(draggedNode);
                 event.consume();
             }
         });
 
+
         personCell.setOnMouseReleased(event -> {
             // Check if a cell was dragged onto another cell.
-            if (selectedCell != null && overlappingCell != null && selectedCell != overlappingCell) {
+            // This now correctly identifies the dragged node and the overlapping one.
+            if (draggedNode instanceof PersonCell && overlappingCell != null && draggedNode != overlappingCell) {
                 // If a valid overlap was detected during the drag, show the dialog.
-                showRelationshipDialog(selectedCell, overlappingCell);
+                showRelationshipDialog((PersonCell) draggedNode, overlappingCell);
             }
 
             // Clear selection and overlapping highlights
-            if (overlappingCell != null) {
-                overlappingCell.getStyleClass().remove("overlapping-cell");
-                overlappingCell = null;
-            }
+            clearOverlapHighlighting();
             clearSelection();
+            draggedNode = null;
             event.consume();
         });
 
@@ -363,10 +423,23 @@ public class TreeVisualizer {
         Person newPerson = new Person(UUID.randomUUID().toString(), "New Person");
 
         if (parentForNew != null) {
+            // Set the appropriate parent based on gender
             if ("Male".equals(parentForNew.getGender())) {
                 newPerson.setFatherId(parentForNew.getId());
             } else {
                 newPerson.setMotherId(parentForNew.getId());
+            }
+            // Check for spouse and add the other parent
+            if (parentForNew.getSpouseIds() != null && !parentForNew.getSpouseIds().isEmpty()) {
+                String spouseId = parentForNew.getSpouseIds().iterator().next();
+                Person spouse = data.getPerson(spouseId);
+                if (spouse != null) {
+                    if ("Male".equals(spouse.getGender())) {
+                        newPerson.setFatherId(spouse.getId());
+                    } else {
+                        newPerson.setMotherId(spouse.getId());
+                    }
+                }
             }
         }
 
@@ -451,44 +524,54 @@ public class TreeVisualizer {
         alert.showAndWait();
     }
 
-    // New checkForOverlaps method that handles HBoxes
-    private void checkForOverlaps(javafx.scene.Node draggedNode) {
+    private void clearOverlapHighlighting() {
         if (overlappingCell != null) {
             overlappingCell.getStyleClass().remove("overlapping-cell");
             overlappingCell = null;
         }
+    }
+
+    /**
+     * Checks for overlaps between the dragged node and other nodes.
+     * This method is now more robust and handles both single cells and HBoxes.
+     */
+    private void checkForOverlaps(javafx.scene.Node draggedNode) {
+        clearOverlapHighlighting();
+
+        // If the dragged node is a spouse group, do not allow overlaps
+        if (draggedNode instanceof HBox) {
+            return;
+        }
 
         for (javafx.scene.Node node : visualizationPane.getChildren()) {
-            if (node == draggedNode) {
+            if (node == draggedNode || !(node instanceof PersonCell || node instanceof HBox)) {
                 continue;
             }
 
-            if (node instanceof PersonCell) {
-                PersonCell cell = (PersonCell) node;
-                javafx.geometry.Bounds draggedBounds = draggedNode.getBoundsInParent();
-                javafx.geometry.Bounds cellBounds = cell.getBoundsInParent();
+            javafx.geometry.Bounds draggedBounds = draggedNode.getBoundsInParent();
+            javafx.geometry.Bounds nodeBounds = node.getBoundsInParent();
 
-                if (draggedBounds.intersects(cellBounds)) {
-                    overlappingCell = cell;
-                    overlappingCell.getStyleClass().add("overlapping-cell");
-                    return;
-                }
-            }
-
-            if (node instanceof HBox) {
-                HBox spouseGroup = (HBox) node;
-                // Check for overlaps with the spouse group as a whole
-                javafx.geometry.Bounds draggedBounds = draggedNode.getBoundsInParent();
-                javafx.geometry.Bounds groupBounds = spouseGroup.getBoundsInParent();
-
-                if (draggedBounds.intersects(groupBounds)) {
-                    // Check which child inside the group the dragged node is overlapping
+            if (draggedBounds.intersects(nodeBounds)) {
+                if (node instanceof PersonCell) {
+                    // Overlapping with a single person cell
+                    PersonCell cell = (PersonCell) node;
+                    if (draggedNode != cell) {
+                        overlappingCell = cell;
+                        overlappingCell.getStyleClass().add("overlapping-cell");
+                        return;
+                    }
+                } else if (node instanceof HBox) {
+                    // Overlapping with a spouse group
+                    HBox spouseGroup = (HBox) node;
                     for (javafx.scene.Node child : spouseGroup.getChildren()) {
                         javafx.geometry.Bounds childBounds = child.getBoundsInParent();
                         if (draggedBounds.intersects(childBounds)) {
-                            overlappingCell = (PersonCell) child;
-                            overlappingCell.getStyleClass().add("overlapping-cell");
-                            return;
+                            PersonCell cell = (PersonCell) child;
+                            if (draggedNode != cell) {
+                                overlappingCell = cell;
+                                overlappingCell.getStyleClass().add("overlapping-cell");
+                                return;
+                            }
                         }
                     }
                 }
@@ -496,39 +579,101 @@ public class TreeVisualizer {
         }
     }
 
-    // Overloaded method for single person cell dragging
-    private void checkForOverlaps(PersonCell draggedCell) {
-        checkForOverlaps((javafx.scene.Node) draggedCell);
-    }
-
-
     private void showRelationshipDialog(PersonCell person1Cell, PersonCell person2Cell) {
         Person person1 = person1Cell.getPerson();
         Person person2 = person2Cell.getPerson();
 
-        RelationshipDialog dialog = new RelationshipDialog(person1, person2);
-        Optional<RelationshipDialog.RelationshipResult> result = dialog.showAndWait();
+        // Check if the dropped-on person is part of a spouse group
+        boolean isSpouseGroup = person2Cell.getParent() instanceof HBox;
+        Person spouse2 = null;
 
-        result.ifPresent(relationship -> {
-            try {
-                switch (relationship.type()) {
-                    case PARENT_CHILD -> {
-                        Person parent = data.getPerson(relationship.parent().getId());
-                        Person child = data.getPerson(relationship.child().getId());
-                        data.setParentChildRelationship(parent, child);
+        if (isSpouseGroup) {
+            HBox spouseGroup = (HBox) person2Cell.getParent();
+            PersonCell p1InGroup = (PersonCell) spouseGroup.getChildren().get(0);
+            PersonCell p2InGroup = (PersonCell) spouseGroup.getChildren().get(1);
+            if (person2Cell == p1InGroup) {
+                spouse2 = p2InGroup.getPerson();
+            } else {
+                spouse2 = p1InGroup.getPerson();
+            }
+        }
+
+        // Custom logic for linking a child to a spouse pair
+        if (isSpouseGroup && spouse2 != null) {
+            if ("Male".equals(person1.getGender())) {
+                // If dragged person is male, spouse group must be a parent pair
+                showSetParentDialog(person1, person2, spouse2);
+            } else if ("Female".equals(person1.getGender())) {
+                // If dragged person is female, spouse group must be a parent pair
+                showSetParentDialog(person1, person2, spouse2);
+            } else {
+                // Gender is not set, we can't assume a parent-child relationship
+                showAlert(Alert.AlertType.WARNING, "Relationship Error", "Cannot create a parent-child relationship without specifying gender.");
+            }
+        } else {
+            // Original logic for single-person relationships
+            RelationshipDialog dialog = new RelationshipDialog(person1, person2);
+            Optional<RelationshipDialog.RelationshipResult> result = dialog.showAndWait();
+            result.ifPresent(relationship -> {
+                try {
+                    switch (relationship.type()) {
+                        case PARENT_CHILD -> {
+                            Person parent = data.getPerson(relationship.parent().getId());
+                            Person child = data.getPerson(relationship.child().getId());
+                            data.setParentChildRelationship(parent, child);
+                        }
+                        case SPOUSE -> {
+                            Person spouse1 = data.getPerson(relationship.spouse1().getId());
+//                            Person spouse2 = data.getPerson(relationship.spouse2().getId());
+                            data.setSpouseRelationship(spouse1, data.getPerson(relationship.spouse2().getId()));
+                        }
                     }
-                    case SPOUSE -> {
-                        Person spouse1 = data.getPerson(relationship.spouse1().getId());
-                        Person spouse2 = data.getPerson(relationship.spouse2().getId());
-                        data.setSpouseRelationship(spouse1, spouse2);
-                    }
+                    data.linkAllRelationships();
+                    refresh();
+                } catch (IllegalStateException e) {
+                    showAlert(Alert.AlertType.WARNING, "Relationship Error", e.getMessage());
+                    refresh();
                 }
+            });
+        }
+    }
+
+    /**
+     * A helper dialog to confirm if the dragged person is the child of the spouse pair.
+     */
+    private void showSetParentDialog(Person child, Person parent1, Person parent2) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Set Parent-Child Relationship");
+        dialog.setHeaderText("Set " + child.getName() + " as the child of " + parent1.getName() + " and " + parent2.getName() + "?");
+
+        VBox vbox = new VBox(10,
+                new Label("This will set both " + parent1.getName() + " and " + parent2.getName() + " as parents of " + child.getName() + "."),
+                new Label("Do you want to proceed?")
+        );
+        dialog.getDialogPane().setContent(vbox);
+
+        ButtonType confirmButton = new ButtonType("Confirm");
+        ButtonType cancelButton = new ButtonType("Cancel");
+        dialog.getDialogPane().getButtonTypes().addAll(confirmButton, cancelButton);
+
+        Optional<ButtonType> result = dialog.showAndWait();
+        if (result.isPresent() && result.get() == confirmButton) {
+            try {
+                // Set the father and mother based on gender
+                Person father = "Male".equals(parent1.getGender()) ? parent1 : parent2;
+                Person mother = "Female".equals(parent1.getGender()) ? parent1 : parent2;
+
+                child.setFatherId(father.getId());
+                child.setMotherId(mother.getId());
+
                 data.linkAllRelationships();
                 refresh();
             } catch (IllegalStateException e) {
                 showAlert(Alert.AlertType.WARNING, "Relationship Error", e.getMessage());
                 refresh();
             }
-        });
+        } else {
+            refresh(); // Refresh to clear any highlighting/selection
+        }
     }
 }
