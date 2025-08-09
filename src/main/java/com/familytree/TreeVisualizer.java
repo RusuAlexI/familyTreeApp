@@ -94,6 +94,10 @@ public class TreeVisualizer {
                     PersonCell person1Cell = new PersonCell(person);
                     PersonCell person2Cell = new PersonCell(spouse);
 
+                    // Add interactions to the individual cells within the group
+                    addInteractionsToPersonCell(person1Cell);
+                    addInteractionsToPersonCell(person2Cell);
+
                     HBox spouseGroup = new HBox(10);
                     spouseGroup.getChildren().addAll(person1Cell, person2Cell);
                     spouseGroup.getStyleClass().add("spouse-group");
@@ -237,16 +241,26 @@ public class TreeVisualizer {
                 data.setLayoutPosition(person1.getId(), new Position(newX, newY));
                 data.setLayoutPosition(person2.getId(), new Position(newX + spouseGroup.getWidth() / 2, newY));
 
+                checkForOverlaps(spouseGroup);
+
                 event.consume();
             }
         });
 
+        // The onMouseReleased for a spouse group should only handle the visual aspect.
+        // Relationship creation is now handled by the individual PersonCells.
         spouseGroup.setOnMouseReleased(event -> {
+            clearSelection();
+            if (overlappingCell != null) {
+                overlappingCell.getStyleClass().remove("overlapping-cell");
+                overlappingCell = null;
+            }
             event.consume();
         });
     }
 
     private void addInteractionsToPersonCell(PersonCell personCell) {
+        // We now add a separate click handler for selection
         personCell.setOnMouseClicked(event -> {
             clearSelection();
             selectedCell = personCell;
@@ -290,12 +304,18 @@ public class TreeVisualizer {
         });
 
         personCell.setOnMouseReleased(event -> {
-            if (overlappingCell != null && selectedCell != null && overlappingCell != selectedCell) {
+            // Check if a cell was dragged onto another cell.
+            if (selectedCell != null && overlappingCell != null && selectedCell != overlappingCell) {
+                // If a valid overlap was detected during the drag, show the dialog.
                 showRelationshipDialog(selectedCell, overlappingCell);
+            }
+
+            // Clear selection and overlapping highlights
+            if (overlappingCell != null) {
                 overlappingCell.getStyleClass().remove("overlapping-cell");
                 overlappingCell = null;
-                selectedCell = null;
             }
+            clearSelection();
             event.consume();
         });
 
@@ -431,16 +451,21 @@ public class TreeVisualizer {
         alert.showAndWait();
     }
 
-    private void checkForOverlaps(PersonCell draggedCell) {
+    // New checkForOverlaps method that handles HBoxes
+    private void checkForOverlaps(javafx.scene.Node draggedNode) {
         if (overlappingCell != null) {
             overlappingCell.getStyleClass().remove("overlapping-cell");
             overlappingCell = null;
         }
 
         for (javafx.scene.Node node : visualizationPane.getChildren()) {
-            if (node instanceof PersonCell && node != draggedCell) {
+            if (node == draggedNode) {
+                continue;
+            }
+
+            if (node instanceof PersonCell) {
                 PersonCell cell = (PersonCell) node;
-                javafx.geometry.Bounds draggedBounds = draggedCell.getBoundsInParent();
+                javafx.geometry.Bounds draggedBounds = draggedNode.getBoundsInParent();
                 javafx.geometry.Bounds cellBounds = cell.getBoundsInParent();
 
                 if (draggedBounds.intersects(cellBounds)) {
@@ -452,23 +477,30 @@ public class TreeVisualizer {
 
             if (node instanceof HBox) {
                 HBox spouseGroup = (HBox) node;
-                for (javafx.scene.Node spouseChild : spouseGroup.getChildren()) {
-                    if (spouseChild instanceof PersonCell) {
-                        PersonCell spouseCell = (PersonCell) spouseChild;
-                        if (spouseCell != draggedCell) {
-                            javafx.geometry.Bounds draggedBounds = draggedCell.getBoundsInParent();
-                            javafx.geometry.Bounds spouseBounds = spouseCell.getBoundsInParent();
-                            if (draggedBounds.intersects(spouseBounds)) {
-                                overlappingCell = spouseCell;
-                                overlappingCell.getStyleClass().add("overlapping-cell");
-                                return;
-                            }
+                // Check for overlaps with the spouse group as a whole
+                javafx.geometry.Bounds draggedBounds = draggedNode.getBoundsInParent();
+                javafx.geometry.Bounds groupBounds = spouseGroup.getBoundsInParent();
+
+                if (draggedBounds.intersects(groupBounds)) {
+                    // Check which child inside the group the dragged node is overlapping
+                    for (javafx.scene.Node child : spouseGroup.getChildren()) {
+                        javafx.geometry.Bounds childBounds = child.getBoundsInParent();
+                        if (draggedBounds.intersects(childBounds)) {
+                            overlappingCell = (PersonCell) child;
+                            overlappingCell.getStyleClass().add("overlapping-cell");
+                            return;
                         }
                     }
                 }
             }
         }
     }
+
+    // Overloaded method for single person cell dragging
+    private void checkForOverlaps(PersonCell draggedCell) {
+        checkForOverlaps((javafx.scene.Node) draggedCell);
+    }
+
 
     private void showRelationshipDialog(PersonCell person1Cell, PersonCell person2Cell) {
         Person person1 = person1Cell.getPerson();
