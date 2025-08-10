@@ -587,7 +587,7 @@ public class TreeVisualizer {
 
     public void deleteSelectedPerson() {
         if (selectedCell != null && selectedCell.getPerson() != null) {
-            data.removePerson(selectedCell.getPerson().getId());
+            data.removePerson(selectedCell.getPerson());
             refresh();
         } else {
             showAlert(Alert.AlertType.WARNING, "No Person Selected", "Please select a person to delete.");
@@ -685,56 +685,69 @@ public class TreeVisualizer {
     private void showRelationshipDialog(PersonCell person1Cell, PersonCell person2Cell) {
         Person person1 = person1Cell.getPerson();
         Person person2 = person2Cell.getPerson();
+        Person father = null;
+        Person mother = null;
 
         // Check if the dropped-on cell is part of a spouse group.
         boolean isSpouseGroup = person2Cell.getParent() instanceof HBox;
 
         if (isSpouseGroup) {
-            // Logic for dropping a single person onto a couple cell.
-            // The showSetParentDialog now gets called directly.
+            // Drop onto a couple. We will make person1 a child of this couple.
             HBox spouseGroup = (HBox) person2Cell.getParent();
             PersonCell p1InGroup = (PersonCell) spouseGroup.getChildren().get(0);
             PersonCell p2InGroup = (PersonCell) spouseGroup.getChildren().get(1);
 
-            Person parent1 = p1InGroup.getPerson();
-            Person parent2 = p2InGroup.getPerson();
-
-            // Check genders to determine which is father and which is mother
-            Person father = "Male".equals(parent1.getGender()) ? parent1 : parent2;
-            Person mother = "Female".equals(parent1.getGender()) ? parent1 : parent2;
+            // Determine father and mother from the group
+            if ("Male".equals(p1InGroup.getPerson().getGender())) {
+                father = p1InGroup.getPerson();
+                mother = p2InGroup.getPerson();
+            } else {
+                father = p2InGroup.getPerson();
+                mother = p1InGroup.getPerson();
+            }
 
             showSetParentDialog(person1, father, mother);
         } else {
-            // Original logic for single-person relationships
-            RelationshipDialog dialog = new RelationshipDialog(person1, person2);
-            Optional<RelationshipDialog.RelationshipResult> result = dialog.showAndWait();
-            result.ifPresent(relationship -> {
-                try {
-                    switch (relationship.type()) {
-                        case PARENT_CHILD -> {
-                            Person parent = data.getPerson(relationship.parent().getId());
-                            Person child = data.getPerson(relationship.child().getId());
-                            data.setParentChildRelationship(parent, child);
-                        }
-                        case SPOUSE -> {
-                            Person spouse1 = data.getPerson(relationship.spouse1().getId());
-                            Person spouse2 = data.getPerson(relationship.spouse2().getId());
-                            data.setSpouseRelationship(spouse1, spouse2);
-                        }
+            // Drop onto a single person. We will ask if it's a child or a spouse.
+            Dialog<ButtonType> dialog = new Dialog<>();
+            dialog.setTitle("Set Relationship");
+            dialog.setHeaderText("How do you want to relate " + person1.getName() + " to " + person2.getName() + "?");
+
+            ButtonType childButton = new ButtonType("Set as Child");
+            ButtonType spouseButton = new ButtonType("Set as Spouse");
+            ButtonType cancelButton = new ButtonType("Cancel");
+            dialog.getDialogPane().getButtonTypes().addAll(childButton, spouseButton, cancelButton);
+
+            Optional<ButtonType> result = dialog.showAndWait();
+            if (result.isPresent()) {
+                if (result.get() == childButton) {
+                    try {
+                        data.setParentChildRelationship(person2, person1);
+                        refresh();
+                    } catch (IllegalStateException e) {
+                        showAlert(Alert.AlertType.WARNING, "Relationship Error", e.getMessage());
+                        refresh();
                     }
-                    data.linkAllRelationships();
-                    refresh();
-                } catch (IllegalStateException e) {
-                    showAlert(Alert.AlertType.WARNING, "Relationship Error", e.getMessage());
-                    refresh();
+                } else if (result.get() == spouseButton) {
+                    try {
+                        data.setSpouseRelationship(person1, person2);
+                        refresh();
+                    } catch (IllegalStateException e) {
+                        showAlert(Alert.AlertType.WARNING, "Relationship Error", e.getMessage());
+                        refresh();
+                    }
+                } else {
+                    refresh(); // Refresh to clear any highlighting/selection
                 }
-            });
+            } else {
+                refresh();
+            }
         }
     }
 
     /**
-     * A helper dialog to confirm if the dragged person is the child of the spouse pair.
-     * This method has been updated to accept a father and mother explicitly.
+     * This new dialog is called when a user drops a person onto a couple (HBox).
+     * It sets both people in the couple as parents to the dropped person.
      */
     private void showSetParentDialog(Person child, Person father, Person mother) {
         Dialog<ButtonType> dialog = new Dialog<>();
@@ -754,9 +767,12 @@ public class TreeVisualizer {
         Optional<ButtonType> result = dialog.showAndWait();
         if (result.isPresent() && result.get() == confirmButton) {
             try {
-                // Set the father and mother based on gender
+                // Set the father and mother
                 child.setFatherId(father.getId());
                 child.setMotherId(mother.getId());
+                // Add the child to the parents' child lists
+                father.addChildId(child.getId());
+                mother.addChildId(child.getId());
 
                 data.linkAllRelationships();
                 refresh();
