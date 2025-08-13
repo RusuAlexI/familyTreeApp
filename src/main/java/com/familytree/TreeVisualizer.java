@@ -1,6 +1,11 @@
 package com.familytree;
 
+import javafx.beans.binding.Bindings;
+import javafx.beans.binding.DoubleBinding;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Point2D;
+import javafx.scene.Group;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
@@ -21,6 +26,7 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.Polyline;
 
 public class TreeVisualizer {
 
@@ -176,16 +182,16 @@ public class TreeVisualizer {
             if (person.getFatherId() != null) {
                 javafx.scene.Node fatherNode = nodeMap.get(person.getFatherId());
                 if (fatherNode != null) {
-                    Line line = createConnectionLine(fatherNode, sourceNode);
-                    line.setStroke(Color.BLUE);
+                    Group line = createConnectionLine(fatherNode, sourceNode);
+//                    line.setStroke(Color.BLUE);
                     visualizationPane.getChildren().add(0, line);
                 }
             }
             if (person.getMotherId() != null) {
                 javafx.scene.Node motherNode = nodeMap.get(person.getMotherId());
                 if (motherNode != null) {
-                    Line line = createConnectionLine(motherNode, sourceNode);
-                    line.setStroke(Color.BLUE);
+                    Group line = createConnectionLine(motherNode, sourceNode);
+//                    line.setStroke(Color.BLUE);
                     visualizationPane.getChildren().add(0, line);
                 }
             }
@@ -194,44 +200,100 @@ public class TreeVisualizer {
                 if (spouseId.compareTo(person.getId()) > 0) {
                     javafx.scene.Node spouseNode = nodeMap.get(spouseId);
                     if (spouseNode != null) {
-                        Line line = createConnectionLine(sourceNode, spouseNode);
-                        line.setStroke(Color.ORANGE);
-                        line.getStrokeDashArray().addAll(5d, 5d);
+                        Group line = createConnectionLine(sourceNode, spouseNode);
+//                        line.setStroke(Color.ORANGE);
+//                        line.getStrokeDashArray().addAll(5d, 5d);
                         visualizationPane.getChildren().add(0, line);
                     }
                 }
             }
         }
+
+//        drawRelationships();
     }
 
-    private Line createConnectionLine(javafx.scene.Node startNode, javafx.scene.Node endNode) {
-        Line line = new Line();
-        line.setStrokeWidth(2);
 
-        // Bind the start point to the center of the start node
+    /**
+     * Creates a connection line between two nodes with a 90-degree angle.
+     * The line is composed of three dynamically bound Line objects, ensuring it
+     * moves with the connected nodes.
+     *
+     * @param startNode The starting node for the connection.
+     * @param endNode The ending node for the connection.
+     * @return A Group object containing the three Line segments that form the angled connection.
+     */
+    private Group createConnectionLine(javafx.scene.Node startNode, javafx.scene.Node endNode) {
+        // Create a group to hold the three line segments
+        Group lineGroup = new Group();
+
+        // Bindings for the center of the start node
+        DoubleBinding startX, startY;
         if (startNode instanceof HBox) {
             HBox spouseGroup = (HBox) startNode;
-            line.startXProperty().bind(spouseGroup.layoutXProperty().add(spouseGroup.widthProperty().divide(2)));
-            line.startYProperty().bind(spouseGroup.layoutYProperty().add(spouseGroup.heightProperty().divide(2)));
+            startX = spouseGroup.layoutXProperty().add(spouseGroup.widthProperty().divide(2));
+            startY = spouseGroup.layoutYProperty().add(spouseGroup.heightProperty().divide(2));
         } else {
             Region startRegion = (Region) startNode;
-            line.startXProperty().bind(startRegion.layoutXProperty().add(startRegion.widthProperty().divide(2)));
-            line.startYProperty().bind(startRegion.layoutYProperty().add(startRegion.heightProperty().divide(2)));
+            startX = startRegion.layoutXProperty().add(startRegion.widthProperty().divide(2));
+            startY = startRegion.layoutYProperty().add(startRegion.heightProperty().divide(2));
         }
 
-        // Bind the end point to the center of the end node
+        // Bindings for the center of the end node
+        DoubleBinding endX, endY;
         if (endNode instanceof HBox) {
             HBox spouseGroup = (HBox) endNode;
-            line.endXProperty().bind(spouseGroup.layoutXProperty().add(spouseGroup.widthProperty().divide(2)));
-            line.endYProperty().bind(spouseGroup.layoutYProperty().add(spouseGroup.heightProperty().divide(2)));
+            endX = spouseGroup.layoutXProperty().add(spouseGroup.widthProperty().divide(2));
+            endY = spouseGroup.layoutYProperty().add(spouseGroup.heightProperty().divide(2));
         } else {
             Region endRegion = (Region) endNode;
-            line.endXProperty().bind(endRegion.layoutXProperty().add(endRegion.widthProperty().divide(2)));
-            line.endYProperty().bind(endRegion.layoutYProperty().add(endRegion.heightProperty().divide(2)));
+            endX = endRegion.layoutXProperty().add(endRegion.widthProperty().divide(2));
+            endY = endRegion.layoutYProperty().add(endRegion.heightProperty().divide(2));
         }
 
-        return line;
+        // Calculate the midpoint of the Y coordinates. This will be the location of the horizontal segment.
+        DoubleBinding midY = Bindings.createDoubleBinding(
+                () -> startY.get() + (endY.get() - startY.get()) / 2,
+                startY, endY
+        );
+
+        // --- Create the three line segments ---
+
+        // Line 1: Vertical segment from the start node
+        Line line1 = new Line();
+        line1.startXProperty().bind(startX);
+        line1.startYProperty().bind(startY);
+        line1.endXProperty().bind(startX); // Stays at the same X
+        line1.endYProperty().bind(midY); // Ends at the midpoint Y
+
+        // Line 2: Horizontal segment at the midpoint
+        Line line2 = new Line();
+        line2.startXProperty().bind(startX); // Starts at the start node's X
+        line2.startYProperty().bind(midY); // Stays at the midpoint Y
+        line2.endXProperty().bind(endX); // Ends at the end node's X
+        line2.endYProperty().bind(midY); // Stays at the midpoint Y
+
+        // Line 3: Vertical segment to the end node
+        Line line3 = new Line();
+        line3.startXProperty().bind(endX); // Starts at the end node's X
+        line3.startYProperty().bind(midY); // Starts at the midpoint Y
+        line3.endXProperty().bind(endX); // Stays at the same X
+        line3.endYProperty().bind(endY); // Ends at the center of the end node
+
+        // Apply common styling
+        line1.setStrokeWidth(2);
+        line2.setStrokeWidth(2);
+        line3.setStrokeWidth(2);
+        line1.setStroke(Color.BLACK);
+        line2.setStroke(Color.BLACK);
+        line3.setStroke(Color.BLACK);
+
+        // Add the lines to the group
+        lineGroup.getChildren().addAll(line1, line2, line3);
+
+        return lineGroup;
     }
+
+
 
     /**
      * This method adds drag-and-drop interactions to the HBox that represents a spouse group.
