@@ -1,14 +1,17 @@
 package com.familytree;
 
-
 import javafx.application.Application;
+import javafx.embed.swing.SwingFXUtils;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.image.WritableImage;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.SnapshotParameters;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
+import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
@@ -35,9 +38,15 @@ public class FamilyTreeApp extends Application {
         openItem.setOnAction(e -> handleOpen(primaryStage));
         MenuItem saveItem = new MenuItem("Save As...");
         saveItem.setOnAction(e -> handleSave(primaryStage));
+
+        // --- NEW: Add a menu item for saving the tree as an image ---
+        MenuItem saveImageItem = new MenuItem("Save as Image...");
+        saveImageItem.setOnAction(e -> handleSaveAsImage(primaryStage));
+
         MenuItem exitItem = new MenuItem("Exit");
         exitItem.setOnAction(e -> primaryStage.close());
-        fileMenu.getItems().addAll(openItem, saveItem, new SeparatorMenuItem(), exitItem);
+
+        fileMenu.getItems().addAll(openItem, saveItem, saveImageItem, new SeparatorMenuItem(), exitItem);
         System.out.println("File menu created.");
 
         // Theme Menu
@@ -157,6 +166,39 @@ public class FamilyTreeApp extends Application {
         }
         treePane.getVisualizer().refresh();
         showAlert(Alert.AlertType.INFORMATION, "Layout Applied", "Family tree nodes have been re-arranged.");
+    }
+
+    /**
+     * Handles saving the family tree visualization as a high-definition image file.
+     * This method captures a snapshot of the entire treePane and saves it as a PNG.
+     *
+     * @param stage The main application stage for the file chooser.
+     */
+    private void handleSaveAsImage(Stage stage) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Family Tree as Image");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG Image", "*.png"));
+        File file = fileChooser.showSaveDialog(stage);
+
+        if (file != null) {
+            try {
+                // We'll create a snapshot of the treePane to capture everything inside it
+                SnapshotParameters params = new SnapshotParameters();
+
+                // --- Set a high scale for a high-definition image ---
+                double scale = 2.0; // This will double the resolution
+                params.setTransform(javafx.scene.transform.Scale.scale(scale, scale));
+
+                WritableImage image = treePane.snapshot(params, null);
+
+                // Save the image to the selected file
+                ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", file);
+
+                showAlert(Alert.AlertType.INFORMATION, "Save Successful", "Family tree saved as " + file.getName());
+            } catch (IOException e) {
+                showAlert(Alert.AlertType.ERROR, "Save Failed", "Could not save image: " + e.getMessage());
+            }
+        }
     }
 
     private void showAlert(Alert.AlertType type, String title, String message) {
