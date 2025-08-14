@@ -1,8 +1,26 @@
 package com.familytree;
 
+import javafx.embed.swing.SwingFXUtils;
+import javafx.scene.SnapshotParameters;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.image.WritableImage;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.stage.FileChooser;
+import javafx.stage.Stage;
+
+import javax.imageio.ImageIO;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Optional;
 import java.util.Objects;
 import java.util.UUID;
@@ -11,6 +29,7 @@ public class PersonDialog extends Dialog<Person> {
 
     private final Person person;
     private final FamilyTreeData data = FamilyTreeData.getInstance();
+    private String selectedFilePath;
 
     public PersonDialog(Person person) {
         this.person = person;
@@ -90,11 +109,47 @@ public class PersonDialog extends Dialog<Person> {
         spousesListView.getItems().addAll(data.getSpouses(person));
         spousesListView.setMaxHeight(Double.MAX_VALUE);
         GridPane.setVgrow(spousesListView, Priority.ALWAYS);
+        // Image
+
+        // Add a section for photo selection
+        Label photoLabel = new Label("Profile Photo:");
+        TextField photoPathField = new TextField(person.getProfilePicturePath());
+        photoPathField.setEditable(false);
+        photoPathField.setPromptText("No photo selected...");
+
+        Button choosePhotoButton = new Button("Choose Photo...");
+        Button removePhotoButton = new Button("Remove Photo");
+
+        choosePhotoButton.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Select Profile Picture");
+            fileChooser.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.gif")
+            );
+            File file = fileChooser.showOpenDialog(getDialogPane().getScene().getWindow());
+            if (file != null) {
+                selectedFilePath = file.getAbsolutePath();
+                photoPathField.setText(selectedFilePath);
+            }
+        });
+
+        removePhotoButton.setOnAction(e -> {
+            selectedFilePath = null;
+            photoPathField.setText(null);
+        });
+
+        HBox photoControls = new HBox(5, photoPathField, choosePhotoButton, removePhotoButton);
+        HBox.setHgrow(photoPathField, Priority.ALWAYS);
+
+//        grid.add(photoLabel, 0, 6);
+//        grid.add(photoControls, 1, 6);
 
         // Add all UI components to the grid
         int row = 0;
         grid.add(nameLabel, 0, row);
         grid.add(nameField, 1, row++);
+        grid.add(photoLabel, 0, row);
+        grid.add(photoControls, 1, row++);
         grid.add(birthDateLabel, 0, row);
         grid.add(birthDateField, 1, row++);
         grid.add(deathDateLabel, 0, row);
@@ -127,6 +182,27 @@ public class PersonDialog extends Dialog<Person> {
                 person.setBio(bioArea.getText());
                 person.setOccupation(occupationField.getText());
 
+                // Handle the profile picture
+                if (selectedFilePath != null) {
+                    try {
+                        Path sourcePath = Paths.get(selectedFilePath);
+                        Path destPath = Paths.get("data", "photos");
+                        if (!Files.exists(destPath)) {
+                            Files.createDirectories(destPath);
+                        }
+                        String newFileName = UUID.randomUUID().toString() + "." + getFileExtension(selectedFilePath);
+                        Path newFilePath = destPath.resolve(newFileName);
+                        Files.copy(sourcePath, newFilePath, StandardCopyOption.REPLACE_EXISTING);
+                        person.setProfilePicturePath(newFilePath.toAbsolutePath().toString());
+                    } catch (IOException e) {
+                        System.err.println("Failed to copy image file: " + e.getMessage());
+                        // Keep the old path if copy fails
+                    }
+                } else {
+                    // This handles the "Remove Photo" case
+                    person.setProfilePicturePath(null);
+                }
+
                 // Update father relationship
                 Person newFather = fatherComboBox.getValue();
                 if (newFather != null && !Objects.equals(person.getFatherId(), newFather.getId())) {
@@ -157,5 +233,50 @@ public class PersonDialog extends Dialog<Person> {
             }
             return null;
         });
+    }
+
+    private String getFileExtension(String filePath) {
+        String fileName = new File(filePath).getName();
+        int dotIndex = fileName.lastIndexOf('.');
+        return (dotIndex == -1) ? "" : fileName.substring(dotIndex + 1);
+    }
+
+    private Image loadImageFromFile(String filePath) {
+        if (filePath != null && !filePath.isEmpty()) {
+            try {
+                return new Image(new FileInputStream(filePath));
+            } catch (FileNotFoundException e) {
+                System.err.println("Profile picture not found: " + filePath);
+            }
+        }
+        return null;
+    }
+
+    private void handleSaveAsImage(Stage stage) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Family Tree as Image");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG Image", "*.png"));
+        File file = fileChooser.showOpenDialog(stage);
+
+        if (file != null) {
+//            try {
+                // We'll create a snapshot of the treePane to capture everything inside it
+                SnapshotParameters params = new SnapshotParameters();
+
+                // --- Set a high scale for a high-definition image ---
+                double scale = 2.0; // This will double the resolution
+                params.setTransform(javafx.scene.transform.Scale.scale(scale, scale));
+
+//                WritableImage image = treePane.snapshot(params, null);
+
+                // Save the image to the selected file
+//                ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", file);
+
+//                showAlert(Alert.AlertType.INFORMATION, "Save Successful", "Family tree saved as " + file.getName());
+//            }
+//            catch (IOException e) {
+//                showAlert(Alert.AlertType.ERROR, "Save Failed", "Could not save image: " + e.getMessage());
+//            }
+        }
     }
 }

@@ -812,38 +812,81 @@ public class TreeVisualizer {
      * It sets both people in the couple as parents to the dropped person.
      */
     private void showSetParentDialog(Person child, Person father, Person mother) {
+
+
+        // Drop onto a single person. We will ask if it's a child or a spouse.
         Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle("Set Parent-Child Relationship");
-        dialog.setHeaderText("Set " + child.getName() + " as the child of " + father.getName() + " and " + mother.getName() + "?");
+        dialog.setTitle("Set Relationship");
+        dialog.setHeaderText("How do you want to relate " + child.getName() + " to " + father.getName() + " and " + mother.getName() + "?");
 
-        VBox vbox = new VBox(10,
-                new Label("This will set both " + father.getName() + " and " + mother.getName() + " as parents of " + child.getName() + "."),
-                new Label("Do you want to proceed?")
-        );
-        dialog.getDialogPane().setContent(vbox);
-
-        ButtonType confirmButton = new ButtonType("Confirm");
+        ButtonType childButton = new ButtonType("Set as Child");
+        ButtonType spouseButton = new ButtonType("Set as parent");
         ButtonType cancelButton = new ButtonType("Cancel");
-        dialog.getDialogPane().getButtonTypes().addAll(confirmButton, cancelButton);
+        dialog.getDialogPane().getButtonTypes().addAll(childButton, spouseButton, cancelButton);
 
         Optional<ButtonType> result = dialog.showAndWait();
-        if (result.isPresent() && result.get() == confirmButton) {
-            try {
-                // Set the father and mother
-                child.setFatherId(father.getId());
-                child.setMotherId(mother.getId());
-                // Add the child to the parents' child lists
-                father.addChildId(child.getId());
-                mother.addChildId(child.getId());
+        if (result.isPresent()) {
+            if (result.get() == childButton) {
+                try {
+                    data.setParentChildRelationship(father, child);
+                    refresh();
+                } catch (IllegalStateException e) {
+                    showAlert(Alert.AlertType.WARNING, "Relationship Error", e.getMessage());
+                    refresh();
+                }
+            } else if (result.get() == spouseButton) {
+                try {
+                    // Set the father and mother
+                    child.addChildId(father.getId());
+                    child.addChildId(mother.getId());
+                    // Add the child to the parents' child lists
+                    father.setFatherId(child.getId());
+                    mother.setFatherId(child.getId());
 
-                data.linkAllRelationships();
-                refresh();
-            } catch (IllegalStateException e) {
-                showAlert(Alert.AlertType.WARNING, "Relationship Error", e.getMessage());
-                refresh();
+                    data.linkAllRelationships();
+                    refresh();
+                } catch (IllegalStateException e) {
+                    showAlert(Alert.AlertType.WARNING, "Relationship Error", e.getMessage());
+                    refresh();
+                }
+            } else {
+                refresh(); // Refresh to clear any highlighting/selection
             }
         } else {
-            refresh(); // Refresh to clear any highlighting/selection
+            refresh();
         }
+//        Dialog<ButtonType> dialog = new Dialog<>();
+//        dialog.setTitle("Set Parent-Child Relationship");
+//        dialog.setHeaderText("Set " + child.getName() + " as the child of " + father.getName() + " and " + mother.getName() + "?");
+
+//        VBox vbox = new VBox(10,
+//                new Label("This will set both " + father.getName() + " and " + mother.getName() + " as parents of " + child.getName() + "."),
+//                new Label("Do you want to proceed?")
+//        );
+//        dialog.getDialogPane().setContent(vbox);
+
+//        ButtonType confirmButton = new ButtonType("Confirm");
+//        ButtonType cancelButton = new ButtonType("Cancel");
+//        dialog.getDialogPane().getButtonTypes().addAll(confirmButton, cancelButton);
+
+//        Optional<ButtonType> result = dialog.showAndWait();
+//        if (result.isPresent() && result.get() == confirmButton) {
+//            try {
+//                // Set the father and mother
+//                child.setFatherId(father.getId());
+//                child.setMotherId(mother.getId());
+//                // Add the child to the parents' child lists
+//                father.addChildId(child.getId());
+//                mother.addChildId(child.getId());
+//
+//                data.linkAllRelationships();
+//                refresh();
+//            } catch (IllegalStateException e) {
+//                showAlert(Alert.AlertType.WARNING, "Relationship Error", e.getMessage());
+//                refresh();
+//            }
+//        } else {
+//            refresh(); // Refresh to clear any highlighting/selection
+//        }
     }
 }
